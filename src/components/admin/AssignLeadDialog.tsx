@@ -24,14 +24,14 @@ interface AssignLeadDialogProps {
 }
 
 export function AssignLeadDialog({ lead, agents, onClose }: AssignLeadDialogProps) {
-  const [selectedAgent, setSelectedAgent] = useState<string>('');
+  const [selectedAgent, setSelectedAgent] = useState<string>('unassigned');
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (lead?.assigned_to) {
       setSelectedAgent(lead.assigned_to);
     } else {
-      setSelectedAgent('');
+      setSelectedAgent('unassigned');
     }
   }, [lead]);
 
@@ -41,14 +41,14 @@ export function AssignLeadDialog({ lead, agents, onClose }: AssignLeadDialogProp
 
       const { error } = await supabase
         .from('leads')
-        .update({ assigned_to: selectedAgent || null })
+        .update({ assigned_to: selectedAgent === 'unassigned' ? null : selectedAgent })
         .eq('id', lead.id);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success(selectedAgent ? 'Lead assigned successfully' : 'Lead unassigned');
+      toast.success(selectedAgent !== 'unassigned' ? 'Lead assigned successfully' : 'Lead unassigned');
       onClose();
     },
     onError: () => {
@@ -76,7 +76,7 @@ export function AssignLeadDialog({ lead, agents, onClose }: AssignLeadDialogProp
                 <SelectValue placeholder="Choose an agent" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Unassigned</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
                 {agents.map((agent) => (
                   <SelectItem key={agent.user_id} value={agent.user_id}>
                     {agent.full_name} ({agent.email})
@@ -99,7 +99,7 @@ export function AssignLeadDialog({ lead, agents, onClose }: AssignLeadDialogProp
           </Button>
           <Button onClick={() => assignMutation.mutate()} disabled={assignMutation.isPending}>
             {assignMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {selectedAgent ? 'Assign' : 'Unassign'}
+            {selectedAgent !== 'unassigned' ? 'Assign' : 'Unassign'}
           </Button>
         </div>
       </DialogContent>
