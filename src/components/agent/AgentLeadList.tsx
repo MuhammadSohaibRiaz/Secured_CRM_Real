@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { Users, Mail, Phone, Building2, Loader2, FileText, Search, X } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
+import { MaskedField } from '@/components/ui/masked-field';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
 type LeadStatus = Database['public']['Enums']['lead_status'];
@@ -229,11 +230,16 @@ export function AgentLeadList() {
                         {lead.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {lead.email && (
-                        <span className="flex items-center gap-1 truncate">
-                          <Mail className="h-3 w-3" />
-                          {lead.email}
+                        <span className="flex items-center gap-1">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <MaskedField 
+                            value={lead.email} 
+                            type="email" 
+                            entityId={lead.id}
+                            className="text-sm"
+                          />
                         </span>
                       )}
                       {lead.company && (
@@ -278,14 +284,22 @@ export function AgentLeadList() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {selectedLead.email && (
                   <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedLead.email}</span>
+                    <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <MaskedField 
+                      value={selectedLead.email} 
+                      type="email" 
+                      entityId={selectedLead.id}
+                    />
                   </div>
                 )}
                 {selectedLead.phone && (
                   <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedLead.phone}</span>
+                    <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <MaskedField 
+                      value={selectedLead.phone} 
+                      type="phone" 
+                      entityId={selectedLead.id}
+                    />
                   </div>
                 )}
                 {selectedLead.company && (

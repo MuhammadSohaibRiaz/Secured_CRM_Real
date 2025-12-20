@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, Building2, GripVertical, ChevronRight, ArrowDown } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 import { LeadDetailsDialog } from '@/components/admin/LeadDetailsDialog';
+import { MaskedField } from '@/components/ui/masked-field';
 import {
   DndContext,
   DragOverlay,
@@ -88,10 +89,18 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
             </p>
           )}
           {lead.email && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 truncate">
+            <div 
+              className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1"
+              onClick={(e) => e.stopPropagation()}
+            >
               <Mail className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{lead.email}</span>
-            </p>
+              <MaskedField 
+                value={lead.email} 
+                type="email" 
+                entityId={lead.id}
+                className="text-xs"
+              />
+            </div>
           )}
         </div>
       </div>
