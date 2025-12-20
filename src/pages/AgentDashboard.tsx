@@ -6,6 +6,7 @@ import { AgentStats } from '@/components/agent/AgentStats';
 import { TaskList } from '@/components/agent/TaskList';
 import { ActivityFeed } from '@/components/agent/ActivityFeed';
 import { AgentLeadList } from '@/components/agent/AgentLeadList';
+import { LeadPipeline } from '@/components/agent/LeadPipeline';
 
 export default function AgentDashboard() {
   const { isLoading, user } = useRequireAuth('agent');
@@ -56,6 +57,11 @@ export default function AgentDashboard() {
         {/* Stats */}
         <div className="mb-8">
           <AgentStats />
+        </div>
+
+        {/* Lead Pipeline */}
+        <div className="mb-8">
+          <LeadPipeline />
         </div>
 
         {/* Main Grid */}
