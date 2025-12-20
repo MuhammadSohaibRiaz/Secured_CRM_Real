@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Loader2, User, Mail, Calendar, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, User, Mail, Calendar, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -29,10 +31,14 @@ interface Agent {
   last_login_at: string | null;
 }
 
+type StatusFilter = 'all' | 'active' | 'inactive';
+
 export function AgentList() {
   const queryClient = useQueryClient();
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data: agents, isLoading, error } = useQuery({
     queryKey: ['agents'],
@@ -61,6 +67,22 @@ export function AgentList() {
       return profiles as Agent[];
     },
   });
+
+  const filteredAgents = useMemo(() => {
+    if (!agents) return [];
+    
+    return agents.filter((agent) => {
+      const matchesSearch = searchQuery === '' || 
+        agent.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        agent.email.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || 
+        (statusFilter === 'active' && agent.is_active) ||
+        (statusFilter === 'inactive' && !agent.is_active);
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [agents, searchQuery, statusFilter]);
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
@@ -147,23 +169,53 @@ export function AgentList() {
     );
   }
 
+  const showNoResults = filteredAgents.length === 0 && agents.length > 0;
+
   return (
     <>
-      <div className="rounded-lg border border-border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead>Agent</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Last Login</TableHead>
-              <TableHead className="text-right">Active</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {agents.map((agent) => (
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+          <SelectTrigger className="w-full sm:w-[150px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {showNoResults ? (
+        <div className="text-center py-12 border border-border rounded-lg">
+          <Search className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+          <p className="text-muted-foreground">No agents match your search criteria.</p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Agent</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Last Login</TableHead>
+                <TableHead className="text-right">Active</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredAgents.map((agent) => (
               <TableRow key={agent.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
@@ -217,7 +269,8 @@ export function AgentList() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
+      )}
 
       <AlertDialog open={!!deletingAgent} onOpenChange={() => setDeletingAgent(null)}>
         <AlertDialogContent>
