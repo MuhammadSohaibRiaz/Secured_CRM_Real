@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Mail, Phone, Building2, Loader2, FileText } from 'lucide-react';
+import { Users, Mail, Phone, Building2, Loader2, FileText, Search, X } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
@@ -28,6 +29,9 @@ export function AgentLeadList() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -113,6 +117,34 @@ export function AgentLeadList() {
     setNotes(lead.notes || '');
   };
 
+  const sources = useMemo(() => {
+    const uniqueSources = [...new Set(leads.map((l) => l.source).filter(Boolean))];
+    return uniqueSources as string[];
+  }, [leads]);
+
+  const filteredLeads = useMemo(() => {
+    return leads.filter((lead) => {
+      const matchesSearch =
+        !searchQuery ||
+        lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lead.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lead.company?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+      const matchesSource = sourceFilter === 'all' || lead.source === sourceFilter;
+
+      return matchesSearch && matchesStatus && matchesSource;
+    });
+  }, [leads, searchQuery, statusFilter, sourceFilter]);
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || sourceFilter !== 'all';
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setSourceFilter('all');
+  };
+
   if (loading) {
     return (
       <Card>
@@ -132,12 +164,59 @@ export function AgentLeadList() {
             My Assigned Leads
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {leads.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No leads assigned to you</p>
+        <CardContent className="space-y-4">
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, or company..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="new">New</SelectItem>
+                <SelectItem value="contacted">Contacted</SelectItem>
+                <SelectItem value="qualified">Qualified</SelectItem>
+                <SelectItem value="converted">Converted</SelectItem>
+                <SelectItem value="lost">Lost</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                {sources.map((source) => (
+                  <SelectItem key={source} value={source}>
+                    {source}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="icon" onClick={clearFilters}>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Leads List */}
+          {filteredLeads.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              {leads.length === 0 ? 'No leads assigned to you' : 'No leads match your filters'}
+            </p>
           ) : (
             <div className="space-y-3">
-              {leads.map((lead) => (
+              {filteredLeads.map((lead) => (
                 <div
                   key={lead.id}
                   className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors cursor-pointer"
