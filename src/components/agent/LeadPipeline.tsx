@@ -16,10 +16,9 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  useDroppable,
 } from '@dnd-kit/core';
 import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { useDroppable } from '@dnd-kit/core';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
 type LeadStatus = Database['public']['Enums']['lead_status'];
@@ -47,7 +46,7 @@ function LeadCard({ lead, isDragging }: LeadCardProps) {
   } = useSortable({ id: lead.id });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition,
   };
 
