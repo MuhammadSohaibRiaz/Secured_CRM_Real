@@ -45,11 +45,13 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
     setNodeRef,
     transform,
     transition,
+    isDragging: isSortableDragging,
   } = useSortable({ id: lead.id });
 
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition,
+    transition: transition || 'transform 250ms cubic-bezier(0.25, 1, 0.5, 1)',
+    zIndex: isSortableDragging ? 50 : undefined,
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -63,17 +65,19 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group bg-card border border-border/60 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-primary/40 transition-all ${
-        isDragging ? 'opacity-50' : ''
+      className={`group bg-card border border-border/60 rounded-lg p-3 shadow-sm transition-all duration-200 ${
+        isDragging 
+          ? 'opacity-40 scale-95' 
+          : 'hover:shadow-md hover:border-primary/40 hover:scale-[1.02]'
       }`}
     >
       <div className="flex items-start gap-2">
         <div
-          className="cursor-grab active:cursor-grabbing p-0.5"
+          className="cursor-grab active:cursor-grabbing p-0.5 transition-transform hover:scale-110"
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground flex-shrink-0" />
+          <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground flex-shrink-0 transition-colors" />
         </div>
         <div 
           className="flex-1 min-w-0 cursor-pointer"
@@ -110,9 +114,9 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
 
 function DraggableLeadCard({ lead }: { lead: Lead }) {
   return (
-    <div className="bg-card border border-primary/40 rounded-lg p-3 shadow-xl ring-2 ring-primary/20">
+    <div className="bg-card border-2 border-primary/50 rounded-lg p-3 shadow-2xl ring-4 ring-primary/20 animate-pulse-soft scale-105 rotate-1">
       <div className="flex items-start gap-2">
-        <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+        <GripVertical className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm text-foreground truncate">{lead.name}</p>
           {lead.company && (
@@ -135,15 +139,15 @@ interface StageColumnProps {
 }
 
 function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
-  const { setNodeRef } = useDroppable({ id: stage.status });
+  const { setNodeRef, isOver: isDroppableOver } = useDroppable({ id: stage.status });
 
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-xl border transition-all duration-200 h-full ${
+      className={`rounded-xl border transition-all duration-300 h-full ${
         isOver 
-          ? `border-2 ${stage.borderColor} ${stage.bgColor} scale-[1.01]` 
-          : 'border-border/40 bg-muted/20'
+          ? `border-2 ${stage.borderColor} ${stage.bgColor} scale-[1.02] shadow-lg` 
+          : 'border-border/40 bg-muted/20 hover:border-border/60'
       }`}
     >
       <div className="p-4 h-full flex flex-col">

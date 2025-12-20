@@ -5,13 +5,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Users, ListTodo, Activity, LogOut, Loader2, UserCheck } from 'lucide-react';
+import { Shield, Users, ListTodo, Activity, LogOut, Loader2, UserCheck, Eye } from 'lucide-react';
 import { AgentList } from '@/components/admin/AgentList';
 import { CreateAgentDialog } from '@/components/admin/CreateAgentDialog';
 import { CreateTaskDialog } from '@/components/admin/CreateTaskDialog';
 import { AdminTaskList } from '@/components/admin/AdminTaskList';
 import { LeadList } from '@/components/admin/LeadList';
 import { CreateLeadDialog } from '@/components/admin/CreateLeadDialog';
+import { ActivityDashboard } from '@/components/admin/ActivityDashboard';
+import { SecurityWatermark } from '@/components/ui/security-watermark';
 
 export default function AdminDashboard() {
   const { isLoading, user } = useRequireAuth('admin');
@@ -174,7 +176,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Tabs for Agents, Tasks, and Leads */}
+        {/* Tabs for Agents, Tasks, Leads, and Activity */}
         <Tabs defaultValue="agents" className="space-y-4">
           <TabsList>
             <TabsTrigger value="agents" className="flex items-center gap-2">
@@ -188,6 +190,10 @@ export default function AdminDashboard() {
             <TabsTrigger value="leads" className="flex items-center gap-2">
               <UserCheck className="h-4 w-4" />
               Leads
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Activity
             </TabsTrigger>
           </TabsList>
 
@@ -264,8 +270,15 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="activity">
+            <ActivityDashboard />
+          </TabsContent>
         </Tabs>
       </main>
+
+      {/* Security Watermark */}
+      <SecurityWatermark opacity={0.02} />
     </div>
   );
 }

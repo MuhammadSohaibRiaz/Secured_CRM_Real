@@ -7,6 +7,7 @@ import { TaskList } from '@/components/agent/TaskList';
 import { ActivityFeed } from '@/components/agent/ActivityFeed';
 import { AgentLeadList } from '@/components/agent/AgentLeadList';
 import { LeadPipeline } from '@/components/agent/LeadPipeline';
+import { SecurityWatermark } from '@/components/ui/security-watermark';
 
 export default function AgentDashboard() {
   const { isLoading, user } = useRequireAuth('agent');
@@ -76,10 +77,8 @@ export default function AgentDashboard() {
         </div>
       </main>
 
-      {/* Watermark overlay */}
-      <div className="fixed bottom-4 right-4 text-xs text-muted-foreground/20 pointer-events-none select-none">
-        {user?.fullName} | {new Date().toLocaleDateString()}
-      </div>
+      {/* Security Watermark - visible on screenshots */}
+      <SecurityWatermark opacity={0.03} />
     </div>
   );
 }

@@ -1,9 +1,8 @@
-import { useState, useCallback } from 'react';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Eye, EyeOff, Loader2, Timer } from 'lucide-react';
 import { Button } from './button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface MaskedFieldProps {
@@ -14,6 +13,7 @@ interface MaskedFieldProps {
   className?: string;
   iconClassName?: string;
   showIcon?: boolean;
+  autoHideSeconds?: number; // Time-limited exposure (default: 60)
 }
 
 function maskEmail(email: string): string {
@@ -51,15 +51,55 @@ export function MaskedField({
   entityType = 'lead',
   className,
   iconClassName,
-  showIcon = true 
+  showIcon = true,
+  autoHideSeconds = 60 
 }: MaskedFieldProps) {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isLogging, setIsLogging] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(autoHideSeconds);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const { authUser } = useAuth();
 
   const maskedValue = value 
     ? (type === 'email' ? maskEmail(value) : maskPhone(value))
     : null;
+
+  // Clear timers on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
+  // Handle auto-hide timer
+  useEffect(() => {
+    if (isRevealed && autoHideSeconds > 0) {
+      setRemainingSeconds(autoHideSeconds);
+      
+      // Countdown timer
+      countdownRef.current = setInterval(() => {
+        setRemainingSeconds(prev => {
+          if (prev <= 1) {
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Auto-hide timer
+      timerRef.current = setTimeout(() => {
+        setIsRevealed(false);
+        if (countdownRef.current) clearInterval(countdownRef.current);
+      }, autoHideSeconds * 1000);
+
+      return () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        if (countdownRef.current) clearInterval(countdownRef.current);
+      };
+    }
+  }, [isRevealed, autoHideSeconds]);
 
   const logReveal = useCallback(async () => {
     if (!authUser?.id || !value) return;
@@ -98,6 +138,15 @@ export function MaskedField({
       setIsRevealed(true);
     } else {
       setIsRevealed(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    }
+  };
+
+  // Prevent copy/paste/select for sensitive data
+  const handlePreventCopy = (e: React.ClipboardEvent | React.MouseEvent) => {
+    if (isRevealed) {
+      e.preventDefault();
     }
   };
 
@@ -106,13 +155,24 @@ export function MaskedField({
   }
 
   return (
-    <span className={cn("inline-flex items-center gap-1.5 group", className)}>
+    <span 
+      className={cn("inline-flex items-center gap-1.5 group select-none", className)}
+      onCopy={handlePreventCopy}
+      onCut={handlePreventCopy}
+      onContextMenu={handlePreventCopy}
+    >
       <span className={cn(
         "transition-all duration-200",
         isRevealed ? "text-foreground" : "text-muted-foreground font-mono"
       )}>
         {isRevealed ? value : maskedValue}
       </span>
+      {isRevealed && remainingSeconds > 0 && (
+        <span className="inline-flex items-center gap-0.5 text-xs text-warning">
+          <Timer className="h-3 w-3" />
+          {remainingSeconds}s
+        </span>
+      )}
       {showIcon && (
         <Button
           variant="ghost"
@@ -123,7 +183,7 @@ export function MaskedField({
           )}
           onClick={handleReveal}
           disabled={isLogging}
-          title={isRevealed ? 'Hide' : 'Reveal (logged)'}
+          title={isRevealed ? 'Hide' : 'Reveal (logged, auto-hides in 60s)'}
         >
           {isLogging ? (
             <Loader2 className="h-3 w-3 animate-spin" />
