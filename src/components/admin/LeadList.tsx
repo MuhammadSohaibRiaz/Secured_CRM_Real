@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables, Enums } from '@/integrations/supabase/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Mail, Phone, Building2, Trash2, UserPlus, Eye } from 'lucide-react';
+import { Loader2, Mail, Phone, Building2, Trash2, UserPlus, Eye, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { AssignLeadDialog } from './AssignLeadDialog';
 import { LeadDetailsDialog } from './LeadDetailsDialog';
@@ -22,10 +23,18 @@ const statusColors: Record<LeadStatus, string> = {
   lost: 'bg-destructive/20 text-destructive border-destructive/30',
 };
 
+const SOURCES = ['website', 'referral', 'social', 'cold_call', 'event', 'other'];
+
 export function LeadList() {
   const queryClient = useQueryClient();
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [agentFilter, setAgentFilter] = useState<string>('all');
 
   const { data: leads, isLoading } = useQuery({
     queryKey: ['leads'],
@@ -123,6 +132,42 @@ export function LeadList() {
     return agent?.full_name || 'Unknown';
   };
 
+  // Filtered leads
+  const filteredLeads = useMemo(() => {
+    if (!leads) return [];
+    
+    return leads.filter((lead) => {
+      // Search filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        lead.name.toLowerCase().includes(searchLower) ||
+        lead.email?.toLowerCase().includes(searchLower) ||
+        lead.company?.toLowerCase().includes(searchLower) ||
+        lead.phone?.includes(searchQuery);
+
+      // Status filter
+      const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+
+      // Source filter
+      const matchesSource = sourceFilter === 'all' || lead.source === sourceFilter;
+
+      // Agent filter
+      const matchesAgent = agentFilter === 'all' || 
+        (agentFilter === 'unassigned' ? !lead.assigned_to : lead.assigned_to === agentFilter);
+
+      return matchesSearch && matchesStatus && matchesSource && matchesAgent;
+    });
+  }, [leads, searchQuery, statusFilter, sourceFilter, agentFilter]);
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || agentFilter !== 'all';
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setSourceFilter('all');
+    setAgentFilter('all');
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -141,109 +186,191 @@ export function LeadList() {
 
   return (
     <>
-      <div className="rounded-md border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Assigned To</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {leads.map((lead) => (
-              <TableRow key={lead.id} className="cursor-pointer" onClick={() => setViewingLead(lead)}>
-                <TableCell className="font-medium">{lead.name}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    {lead.email && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Mail className="h-3 w-3" />
-                        {lead.email}
-                      </span>
-                    )}
-                    {lead.phone && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Phone className="h-3 w-3" />
-                        {lead.phone}
-                      </span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {lead.company && (
-                    <span className="flex items-center gap-1 text-sm">
-                      <Building2 className="h-3 w-3 text-muted-foreground" />
-                      {lead.company}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {lead.source || '-'}
-                </TableCell>
-                <TableCell>
-                  <Select
-                    value={lead.status}
-                    onValueChange={(value) =>
-                      updateStatusMutation.mutate({ id: lead.id, status: value as LeadStatus })
-                    }
-                  >
-                    <SelectTrigger className="w-[130px] h-8">
-                      <Badge className={statusColors[lead.status]} variant="outline">
-                        {lead.status}
-                      </Badge>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="contacted">Contacted</SelectItem>
-                      <SelectItem value="qualified">Qualified</SelectItem>
-                      <SelectItem value="converted">Converted</SelectItem>
-                      <SelectItem value="lost">Lost</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <span className={lead.assigned_to ? 'text-foreground' : 'text-muted-foreground'}>
-                    {getAgentName(lead.assigned_to)}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setViewingLead(lead)}
-                      title="View details"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setAssigningLead(lead)}
-                      title="Assign to agent"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteMutation.mutate(lead.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      {/* Filters */}
+      <div className="mb-4 space-y-3">
+        <div className="flex flex-wrap gap-3">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, email, company..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="new">New</SelectItem>
+              <SelectItem value="contacted">Contacted</SelectItem>
+              <SelectItem value="qualified">Qualified</SelectItem>
+              <SelectItem value="converted">Converted</SelectItem>
+              <SelectItem value="lost">Lost</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Source Filter */}
+          <Select value={sourceFilter} onValueChange={setSourceFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Source" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              {SOURCES.map((source) => (
+                <SelectItem key={source} value={source}>
+                  {source.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Agent Filter */}
+          <Select value={agentFilter} onValueChange={setAgentFilter}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Assigned To" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Agents</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {agents?.map((agent) => (
+                <SelectItem key={agent.user_id} value={agent.user_id}>
+                  {agent.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+              <X className="h-4 w-4" />
+              Clear
+            </Button>
+          )}
+        </div>
+
+        {/* Results count */}
+        <p className="text-sm text-muted-foreground">
+          Showing {filteredLeads.length} of {leads.length} leads
+        </p>
       </div>
+
+      {filteredLeads.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground border border-border rounded-md">
+          No leads match your filters.
+        </div>
+      ) : (
+        <div className="rounded-md border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assigned To</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredLeads.map((lead) => (
+                <TableRow key={lead.id} className="cursor-pointer" onClick={() => setViewingLead(lead)}>
+                  <TableCell className="font-medium">{lead.name}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {lead.email && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3" />
+                          {lead.email}
+                        </span>
+                      )}
+                      {lead.phone && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3" />
+                          {lead.phone}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {lead.company && (
+                      <span className="flex items-center gap-1 text-sm">
+                        <Building2 className="h-3 w-3 text-muted-foreground" />
+                        {lead.company}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {lead.source || '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={lead.status}
+                        onValueChange={(value) =>
+                          updateStatusMutation.mutate({ id: lead.id, status: value as LeadStatus })
+                        }
+                      >
+                        <SelectTrigger className="w-[130px] h-8">
+                          <Badge className={statusColors[lead.status]} variant="outline">
+                            {lead.status}
+                          </Badge>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="new">New</SelectItem>
+                          <SelectItem value="contacted">Contacted</SelectItem>
+                          <SelectItem value="qualified">Qualified</SelectItem>
+                          <SelectItem value="converted">Converted</SelectItem>
+                          <SelectItem value="lost">Lost</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className={lead.assigned_to ? 'text-foreground' : 'text-muted-foreground'}>
+                      {getAgentName(lead.assigned_to)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setViewingLead(lead)}
+                        title="View details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setAssigningLead(lead)}
+                        title="Assign to agent"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteMutation.mutate(lead.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <AssignLeadDialog
         lead={assigningLead}
