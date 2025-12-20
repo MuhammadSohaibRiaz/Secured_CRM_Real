@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, User, Mail, Calendar, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, User, Mail, Calendar, Trash2, Search, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { EditAgentDialog } from './EditAgentDialog';
 
 interface Agent {
   id: string;
@@ -39,6 +40,7 @@ export function AgentList() {
   const queryClient = useQueryClient();
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -270,14 +272,24 @@ export function AgentList() {
                   />
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeletingAgent(agent)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      onClick={() => setEditingAgent(agent)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeletingAgent(agent)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -356,6 +368,12 @@ export function AgentList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditAgentDialog
+        agent={editingAgent}
+        open={!!editingAgent}
+        onOpenChange={(open) => !open && setEditingAgent(null)}
+      />
     </>
   );
 }

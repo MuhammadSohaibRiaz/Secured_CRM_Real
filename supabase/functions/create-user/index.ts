@@ -32,6 +32,11 @@ serve(async (req) => {
       return await handleDeleteUser(req, supabaseAdmin, body);
     }
 
+    // Handle EDIT action
+    if (action === 'edit') {
+      return await handleEditUser(req, supabaseAdmin, body);
+    }
+
     // Handle CREATE action (default)
     return await handleCreateUser(req, supabaseAdmin, body);
   } catch (error) {
@@ -90,6 +95,88 @@ async function verifyAdmin(req: Request, supabaseAdmin: any): Promise<{ isAdmin:
   }
 
   return { isAdmin: true, adminId: user.id };
+}
+
+async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Promise<Response> {
+  const { userId, fullName, email } = body;
+
+  if (!userId || !fullName || !email) {
+    return new Response(
+      JSON.stringify({ error: 'Missing required fields: userId, fullName, email' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate input lengths
+  if (fullName.length > 100) {
+    return new Response(
+      JSON.stringify({ error: 'Name must be less than 100 characters' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (email.length > 255) {
+    return new Response(
+      JSON.stringify({ error: 'Email must be less than 255 characters' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Verify admin
+  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin);
+  if (!isAdmin || error) {
+    return error!;
+  }
+
+  // Check if target user is an agent (only allow editing agents)
+  const { data: roleData } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .single();
+
+  if (!roleData || roleData.role !== 'agent') {
+    return new Response(
+      JSON.stringify({ error: 'Can only edit agent accounts' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log(`Admin ${adminId} editing agent ${userId}`);
+
+  // Update profile
+  const { error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .update({ full_name: fullName.trim(), email: email.trim() })
+    .eq('user_id', userId);
+
+  if (profileError) {
+    console.error('Error updating profile:', profileError);
+    return new Response(
+      JSON.stringify({ error: 'Failed to update profile' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Update auth user email
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    email: email.trim(),
+  });
+
+  if (authError) {
+    console.error('Error updating auth user:', authError);
+    return new Response(
+      JSON.stringify({ error: 'Failed to update email in auth system' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log(`Successfully updated agent ${userId}`);
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
 async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Promise<Response> {
