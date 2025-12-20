@@ -1,8 +1,10 @@
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, FileText, Clock, LogOut, Loader2 } from 'lucide-react';
+import { User, LogOut, Loader2 } from 'lucide-react';
+import { AgentStats } from '@/components/agent/AgentStats';
+import { TaskList } from '@/components/agent/TaskList';
+import { ActivityFeed } from '@/components/agent/ActivityFeed';
 
 export default function AgentDashboard() {
   const { isLoading, user } = useRequireAuth('agent');
@@ -27,7 +29,7 @@ export default function AgentDashboard() {
             </div>
             <div>
               <h1 className="font-semibold text-foreground">Agent Workspace</h1>
-              <p className="text-xs text-muted-foreground">Secure Lead Management</p>
+              <p className="text-xs text-muted-foreground">Task Management</p>
             </div>
           </div>
 
@@ -47,78 +49,27 @@ export default function AgentDashboard() {
       <main className="container px-4 py-8">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-foreground">Welcome, {user?.fullName}</h2>
-          <p className="text-muted-foreground">Your assigned leads will appear here.</p>
+          <p className="text-muted-foreground">Here's an overview of your tasks and activity.</p>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid gap-4 md:grid-cols-3 mb-8">
-          <Card className="glass-panel">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Assigned Leads
-              </CardTitle>
-              <FileText className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Total assigned</p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-panel">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pending
-              </CardTitle>
-              <Clock className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">To contact</p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-panel">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Contacted Today
-              </CardTitle>
-              <User className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Leads worked</p>
-            </CardContent>
-          </Card>
+        {/* Stats */}
+        <div className="mb-8">
+          <AgentStats />
         </div>
 
-        {/* Leads workspace placeholder */}
-        <Card className="glass-panel">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              My Leads
-            </CardTitle>
-            <CardDescription>
-              Your assigned leads with secure data access
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <FileText className="h-12 w-12 text-muted-foreground/30 mb-4" />
-              <p className="text-muted-foreground">
-                No leads assigned yet.
-              </p>
-              <p className="text-sm text-muted-foreground/70">
-                Your administrator will assign leads to you.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Main Grid */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <TaskList />
+          </div>
+          <div>
+            <ActivityFeed />
+          </div>
+        </div>
       </main>
 
-      {/* Watermark overlay - will be enhanced in Module 5 */}
-      <div className="fixed bottom-4 right-4 text-xs text-muted-foreground/20 pointer-events-none no-select">
+      {/* Watermark overlay */}
+      <div className="fixed bottom-4 right-4 text-xs text-muted-foreground/20 pointer-events-none select-none">
         {user?.fullName} | {new Date().toLocaleDateString()}
       </div>
     </div>

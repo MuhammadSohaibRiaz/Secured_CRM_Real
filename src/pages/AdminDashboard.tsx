@@ -4,9 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Shield, Users, FileText, Activity, LogOut, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Shield, Users, ListTodo, Activity, LogOut, Loader2 } from 'lucide-react';
 import { AgentList } from '@/components/admin/AgentList';
 import { CreateAgentDialog } from '@/components/admin/CreateAgentDialog';
+import { CreateTaskDialog } from '@/components/admin/CreateTaskDialog';
+import { AdminTaskList } from '@/components/admin/AdminTaskList';
 
 export default function AdminDashboard() {
   const { isLoading, user } = useRequireAuth('admin');
@@ -14,8 +17,9 @@ export default function AdminDashboard() {
 
   // Fetch agent stats
   const { data: stats } = useQuery({
-    queryKey: ['agent-stats'],
+    queryKey: ['admin-stats'],
     queryFn: async () => {
+      // Agent stats
       const { data: agentRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id')
@@ -23,23 +27,30 @@ export default function AdminDashboard() {
 
       if (rolesError) throw rolesError;
 
-      if (!agentRoles || agentRoles.length === 0) {
-        return { total: 0, active: 0 };
+      let totalAgents = 0;
+      let activeAgents = 0;
+
+      if (agentRoles && agentRoles.length > 0) {
+        const agentUserIds = agentRoles.map(r => r.user_id);
+
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('is_active')
+          .in('user_id', agentUserIds);
+
+        totalAgents = profiles?.length || 0;
+        activeAgents = profiles?.filter(p => p.is_active).length || 0;
       }
 
-      const agentUserIds = agentRoles.map(r => r.user_id);
+      // Task stats
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('status');
 
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('is_active')
-        .in('user_id', agentUserIds);
+      const totalTasks = tasks?.length || 0;
+      const pendingTasks = tasks?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
 
-      if (profilesError) throw profilesError;
-
-      const total = profiles?.length || 0;
-      const active = profiles?.filter(p => p.is_active).length || 0;
-
-      return { total, active };
+      return { totalAgents, activeAgents, totalTasks, pendingTasks };
     },
   });
 
@@ -62,7 +73,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h1 className="font-semibold text-foreground">Admin Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Secure Lead Management</p>
+              <p className="text-xs text-muted-foreground">Agent & Task Management</p>
             </div>
           </div>
 
@@ -82,7 +93,7 @@ export default function AdminDashboard() {
       <main className="container px-4 py-8">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-foreground">Welcome back, {user?.fullName}</h2>
-          <p className="text-muted-foreground">Manage your agents and leads from here.</p>
+          <p className="text-muted-foreground">Manage your agents and tasks from here.</p>
         </div>
 
         {/* Quick Stats */}
@@ -95,7 +106,7 @@ export default function AdminDashboard() {
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.total ?? 0}</div>
+              <div className="text-2xl font-bold">{stats?.totalAgents ?? 0}</div>
               <p className="text-xs text-muted-foreground">Registered agents</p>
             </CardContent>
           </Card>
@@ -108,7 +119,7 @@ export default function AdminDashboard() {
               <Activity className="h-4 w-4 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.active ?? 0}</div>
+              <div className="text-2xl font-bold">{stats?.activeAgents ?? 0}</div>
               <p className="text-xs text-muted-foreground">Currently active</p>
             </CardContent>
           </Card>
@@ -116,48 +127,97 @@ export default function AdminDashboard() {
           <Card className="glass-panel">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Leads
+                Total Tasks
               </CardTitle>
-              <FileText className="h-4 w-4 text-warning" />
+              <ListTodo className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Coming in Module 3</p>
+              <div className="text-2xl font-bold">{stats?.totalTasks ?? 0}</div>
+              <p className="text-xs text-muted-foreground">All assigned tasks</p>
             </CardContent>
           </Card>
 
           <Card className="glass-panel">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Reveals Today
+                Pending Tasks
               </CardTitle>
               <Shield className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Coming in Module 4</p>
+              <div className="text-2xl font-bold">{stats?.pendingTasks ?? 0}</div>
+              <p className="text-xs text-muted-foreground">Need attention</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Agent Management Section */}
-        <Card className="glass-panel">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Agent Management
-              </CardTitle>
-              <CardDescription>
-                Create and manage agent accounts
-              </CardDescription>
+        {/* Tabs for Agents and Tasks */}
+        <Tabs defaultValue="agents" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="agents" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Agents
+            </TabsTrigger>
+            <TabsTrigger value="tasks" className="flex items-center gap-2">
+              <ListTodo className="h-4 w-4" />
+              Tasks
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="agents">
+            <Card className="glass-panel">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    Agent Management
+                  </CardTitle>
+                  <CardDescription>
+                    Create and manage agent accounts
+                  </CardDescription>
+                </div>
+                <CreateAgentDialog />
+              </CardHeader>
+              <CardContent>
+                <AgentList />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="tasks">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <Card className="glass-panel">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <ListTodo className="h-5 w-5 text-primary" />
+                        Task Management
+                      </CardTitle>
+                      <CardDescription>
+                        Assign and track agent tasks
+                      </CardDescription>
+                    </div>
+                    <CreateTaskDialog />
+                  </CardHeader>
+                  <CardContent>
+                    <AdminTaskList />
+                  </CardContent>
+                </Card>
+              </div>
+              <div>
+                <Card className="glass-panel">
+                  <CardHeader>
+                    <CardTitle className="text-sm">Quick Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <CreateTaskDialog />
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-            <CreateAgentDialog />
-          </CardHeader>
-          <CardContent>
-            <AgentList />
-          </CardContent>
-        </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
