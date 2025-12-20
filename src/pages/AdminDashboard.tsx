@@ -1,12 +1,47 @@
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Shield, Users, FileText, Activity, LogOut, Loader2 } from 'lucide-react';
+import { AgentList } from '@/components/admin/AgentList';
+import { CreateAgentDialog } from '@/components/admin/CreateAgentDialog';
 
 export default function AdminDashboard() {
   const { isLoading, user } = useRequireAuth('admin');
   const { signOut } = useAuth();
+
+  // Fetch agent stats
+  const { data: stats } = useQuery({
+    queryKey: ['agent-stats'],
+    queryFn: async () => {
+      const { data: agentRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'agent');
+
+      if (rolesError) throw rolesError;
+
+      if (!agentRoles || agentRoles.length === 0) {
+        return { total: 0, active: 0 };
+      }
+
+      const agentUserIds = agentRoles.map(r => r.user_id);
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('is_active')
+        .in('user_id', agentUserIds);
+
+      if (profilesError) throw profilesError;
+
+      const total = profiles?.length || 0;
+      const active = profiles?.filter(p => p.is_active).length || 0;
+
+      return { total, active };
+    },
+  });
 
   if (isLoading) {
     return (
@@ -60,8 +95,21 @@ export default function AdminDashboard() {
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Active agents</p>
+              <div className="text-2xl font-bold">{stats?.total ?? 0}</div>
+              <p className="text-xs text-muted-foreground">Registered agents</p>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-panel">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Active Agents
+              </CardTitle>
+              <Activity className="h-4 w-4 text-accent" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.active ?? 0}</div>
+              <p className="text-xs text-muted-foreground">Currently active</p>
             </CardContent>
           </Card>
 
@@ -70,11 +118,11 @@ export default function AdminDashboard() {
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Leads
               </CardTitle>
-              <FileText className="h-4 w-4 text-accent" />
+              <FileText className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">In database</p>
+              <p className="text-xs text-muted-foreground">Coming in Module 3</p>
             </CardContent>
           </Card>
 
@@ -83,32 +131,19 @@ export default function AdminDashboard() {
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Reveals Today
               </CardTitle>
-              <Activity className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Data reveals</p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-panel">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Alerts
-              </CardTitle>
               <Shield className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Suspicious patterns</p>
+              <p className="text-xs text-muted-foreground">Coming in Module 4</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Placeholder sections */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="glass-panel">
-            <CardHeader>
+        {/* Agent Management Section */}
+        <Card className="glass-panel">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
                 Agent Management
@@ -116,37 +151,13 @@ export default function AdminDashboard() {
               <CardDescription>
                 Create and manage agent accounts
               </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Coming in Module 2: Create agents, manage access, and monitor activity.
-              </p>
-              <Button disabled className="w-full">
-                Create Agent (Coming Soon)
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-panel">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-accent" />
-                Lead Management
-              </CardTitle>
-              <CardDescription>
-                Import and assign leads
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Coming in Module 3: Import leads via CSV, manual entry, or API.
-              </p>
-              <Button disabled className="w-full" variant="secondary">
-                Import Leads (Coming Soon)
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            <CreateAgentDialog />
+          </CardHeader>
+          <CardContent>
+            <AgentList />
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
