@@ -5,6 +5,7 @@ import { User, LogOut, Loader2 } from 'lucide-react';
 import { AgentStats } from '@/components/agent/AgentStats';
 import { TaskList } from '@/components/agent/TaskList';
 import { ActivityFeed } from '@/components/agent/ActivityFeed';
+import { AgentLeadList } from '@/components/agent/AgentLeadList';
 
 export default function AgentDashboard() {
   const { isLoading, user } = useRequireAuth('agent');
@@ -59,8 +60,9 @@ export default function AgentDashboard() {
 
         {/* Main Grid */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <TaskList />
+            <AgentLeadList />
           </div>
           <div>
             <ActivityFeed />
