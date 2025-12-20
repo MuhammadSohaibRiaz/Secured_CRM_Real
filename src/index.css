@@ -118,4 +118,20 @@
   .glow-ring {
     box-shadow: var(--shadow-glow);
   }
+
+  /* Pulse animation for drag overlay */
+  @keyframes pulse-soft {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+    }
+    50% {
+      opacity: 0.95;
+      box-shadow: 0 0 0 8px hsl(var(--primary) / 0);
+    }
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 1.5s ease-in-out infinite;
+  }
 }
