@@ -9,9 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Mail, Phone, Building2, Calendar, User, Save, Clock, MessageSquare } from 'lucide-react';
+import { Loader2, Mail, Phone, Building2, Calendar, User, Save, Clock, MessageSquare, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { MaskedField } from '@/components/ui/masked-field';
 
 type Lead = Tables<'leads'>;
 type LeadStatus = Enums<'lead_status'>;
@@ -142,18 +143,22 @@ export function LeadDetailsDialog({ lead, onClose }: LeadDetailsDialogProps) {
               <div className="grid gap-3">
                 {lead.email && (
                   <div className="flex items-center gap-3 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${lead.email}`} className="text-primary hover:underline">
-                      {lead.email}
-                    </a>
+                    <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <MaskedField 
+                      value={lead.email} 
+                      type="email" 
+                      entityId={lead.id}
+                    />
                   </div>
                 )}
                 {lead.phone && (
                   <div className="flex items-center gap-3 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <a href={`tel:${lead.phone}`} className="text-primary hover:underline">
-                      {lead.phone}
-                    </a>
+                    <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <MaskedField 
+                      value={lead.phone} 
+                      type="phone" 
+                      entityId={lead.id}
+                    />
                   </div>
                 )}
                 {lead.company && (
@@ -284,6 +289,8 @@ function formatActivityAction(action: string): string {
     status_changed: 'Status was changed',
     assigned: 'Lead was assigned',
     created: 'Lead was created',
+    revealed_email: 'Email was revealed',
+    revealed_phone: 'Phone was revealed',
   };
   return actions[action] || action.replace(/_/g, ' ');
 }

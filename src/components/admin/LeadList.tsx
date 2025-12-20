@@ -11,6 +11,7 @@ import { Loader2, Mail, Phone, Building2, Trash2, UserPlus, Eye, Search, X } fro
 import { toast } from 'sonner';
 import { AssignLeadDialog } from './AssignLeadDialog';
 import { LeadDetailsDialog } from './LeadDetailsDialog';
+import { MaskedField } from '@/components/ui/masked-field';
 
 type Lead = Tables<'leads'>;
 type LeadStatus = Enums<'lead_status'>;
@@ -283,17 +284,27 @@ export function LeadList() {
                 <TableRow key={lead.id} className="cursor-pointer" onClick={() => setViewingLead(lead)}>
                   <TableCell className="font-medium">{lead.name}</TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
                       {lead.email && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          {lead.email}
+                        <span className="flex items-center gap-1 text-xs">
+                          <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <MaskedField 
+                            value={lead.email} 
+                            type="email" 
+                            entityId={lead.id}
+                            className="text-xs"
+                          />
                         </span>
                       )}
                       {lead.phone && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          {lead.phone}
+                        <span className="flex items-center gap-1 text-xs">
+                          <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <MaskedField 
+                            value={lead.phone} 
+                            type="phone" 
+                            entityId={lead.id}
+                            className="text-xs"
+                          />
                         </span>
                       )}
                     </div>
