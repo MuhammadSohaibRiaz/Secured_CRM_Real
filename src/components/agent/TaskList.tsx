@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,6 +56,37 @@ export function TaskList() {
     },
     enabled: !!authUser?.id,
   });
+
+  // Subscribe to realtime updates for tasks
+  useEffect(() => {
+    if (!authUser?.id) return;
+
+    const channel = supabase
+      .channel('agent-tasks-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `assigned_to=eq.${authUser.id}`,
+        },
+        (payload) => {
+          console.log('Task realtime update:', payload);
+          queryClient.invalidateQueries({ queryKey: ['agent-tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['agent-stats'] });
+          
+          if (payload.eventType === 'INSERT') {
+            toast.info('New task assigned to you!');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser?.id, queryClient]);
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: TaskStatus }) => {
