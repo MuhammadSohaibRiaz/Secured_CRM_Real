@@ -44,6 +44,51 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          company: string | null
+          created_at: string
+          created_by: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          source: string | null
+          status: Database["public"]["Enums"]["lead_status"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string
+          created_by: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string
+          created_by?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -163,6 +208,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "agent"
+      lead_status: "new" | "contacted" | "qualified" | "converted" | "lost"
       task_priority: "low" | "medium" | "high" | "urgent"
       task_status: "pending" | "in_progress" | "completed" | "cancelled"
     }
@@ -293,6 +339,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "agent"],
+      lead_status: ["new", "contacted", "qualified", "converted", "lost"],
       task_priority: ["low", "medium", "high", "urgent"],
       task_status: ["pending", "in_progress", "completed", "cancelled"],
     },

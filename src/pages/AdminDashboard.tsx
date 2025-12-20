@@ -5,11 +5,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Users, ListTodo, Activity, LogOut, Loader2 } from 'lucide-react';
+import { Shield, Users, ListTodo, Activity, LogOut, Loader2, UserCheck } from 'lucide-react';
 import { AgentList } from '@/components/admin/AgentList';
 import { CreateAgentDialog } from '@/components/admin/CreateAgentDialog';
 import { CreateTaskDialog } from '@/components/admin/CreateTaskDialog';
 import { AdminTaskList } from '@/components/admin/AdminTaskList';
+import { LeadList } from '@/components/admin/LeadList';
+import { CreateLeadDialog } from '@/components/admin/CreateLeadDialog';
 
 export default function AdminDashboard() {
   const { isLoading, user } = useRequireAuth('admin');
@@ -50,7 +52,15 @@ export default function AdminDashboard() {
       const totalTasks = tasks?.length || 0;
       const pendingTasks = tasks?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
 
-      return { totalAgents, activeAgents, totalTasks, pendingTasks };
+      // Lead stats
+      const { data: leads } = await supabase
+        .from('leads')
+        .select('status');
+
+      const totalLeads = leads?.length || 0;
+      const newLeads = leads?.filter(l => l.status === 'new').length || 0;
+
+      return { totalAgents, activeAgents, totalTasks, pendingTasks, totalLeads, newLeads };
     },
   });
 
@@ -97,7 +107,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
           <Card className="glass-panel">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -140,18 +150,31 @@ export default function AdminDashboard() {
           <Card className="glass-panel">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pending Tasks
+                Total Leads
+              </CardTitle>
+              <UserCheck className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.totalLeads ?? 0}</div>
+              <p className="text-xs text-muted-foreground">All tracked leads</p>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-panel">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                New Leads
               </CardTitle>
               <Shield className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.pendingTasks ?? 0}</div>
+              <div className="text-2xl font-bold">{stats?.newLeads ?? 0}</div>
               <p className="text-xs text-muted-foreground">Need attention</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tabs for Agents and Tasks */}
+        {/* Tabs for Agents, Tasks, and Leads */}
         <Tabs defaultValue="agents" className="space-y-4">
           <TabsList>
             <TabsTrigger value="agents" className="flex items-center gap-2">
@@ -161,6 +184,10 @@ export default function AdminDashboard() {
             <TabsTrigger value="tasks" className="flex items-center gap-2">
               <ListTodo className="h-4 w-4" />
               Tasks
+            </TabsTrigger>
+            <TabsTrigger value="leads" className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              Leads
             </TabsTrigger>
           </TabsList>
 
@@ -216,6 +243,26 @@ export default function AdminDashboard() {
                 </Card>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="leads">
+            <Card className="glass-panel">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-primary" />
+                    Lead Management
+                  </CardTitle>
+                  <CardDescription>
+                    Track and assign leads to agents
+                  </CardDescription>
+                </div>
+                <CreateLeadDialog />
+              </CardHeader>
+              <CardContent>
+                <LeadList />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
