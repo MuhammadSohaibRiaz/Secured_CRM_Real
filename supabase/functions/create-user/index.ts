@@ -37,6 +37,11 @@ serve(async (req) => {
       return await handleEditUser(req, supabaseAdmin, body);
     }
 
+    // Handle RESET PASSWORD action
+    if (action === 'reset-password') {
+      return await handleResetPassword(req, supabaseAdmin, body);
+    }
+
     // Handle CREATE action (default)
     return await handleCreateUser(req, supabaseAdmin, body);
   } catch (error) {
@@ -172,6 +177,67 @@ async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Prom
   }
 
   console.log(`Successfully updated agent ${userId}`);
+
+  return new Response(
+    JSON.stringify({ success: true }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+async function handleResetPassword(req: Request, supabaseAdmin: any, body: any): Promise<Response> {
+  const { userId, newPassword } = body;
+
+  if (!userId || !newPassword) {
+    return new Response(
+      JSON.stringify({ error: 'Missing required fields: userId, newPassword' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate password length
+  if (newPassword.length < 6) {
+    return new Response(
+      JSON.stringify({ error: 'Password must be at least 6 characters' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Verify admin
+  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin);
+  if (!isAdmin || error) {
+    return error!;
+  }
+
+  // Check if target user is an agent (only allow resetting agent passwords)
+  const { data: roleData } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .single();
+
+  if (!roleData || roleData.role !== 'agent') {
+    return new Response(
+      JSON.stringify({ error: 'Can only reset passwords for agent accounts' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log(`Admin ${adminId} resetting password for agent ${userId}`);
+
+  // Update the user's password
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    password: newPassword,
+  });
+
+  if (authError) {
+    console.error('Error resetting password:', authError);
+    return new Response(
+      JSON.stringify({ error: 'Failed to reset password' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log(`Successfully reset password for agent ${userId}`);
 
   return new Response(
     JSON.stringify({ success: true }),
