@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, User, Mail, Calendar, Trash2, Search, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
+import { Loader2, User, Mail, Calendar, Trash2, Search, ChevronLeft, ChevronRight, Pencil, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { EditAgentDialog } from './EditAgentDialog';
+import { ResetPasswordDialog } from './ResetPasswordDialog';
 
 interface Agent {
   id: string;
@@ -41,6 +42,7 @@ export function AgentList() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [resettingPasswordAgent, setResettingPasswordAgent] = useState<Agent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -278,14 +280,25 @@ export function AgentList() {
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-primary"
                       onClick={() => setEditingAgent(agent)}
+                      title="Edit agent"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-warning"
+                      onClick={() => setResettingPasswordAgent(agent)}
+                      title="Reset password"
+                    >
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       onClick={() => setDeletingAgent(agent)}
+                      title="Delete agent"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -373,6 +386,12 @@ export function AgentList() {
         agent={editingAgent}
         open={!!editingAgent}
         onOpenChange={(open) => !open && setEditingAgent(null)}
+      />
+
+      <ResetPasswordDialog
+        agent={resettingPasswordAgent}
+        open={!!resettingPasswordAgent}
+        onOpenChange={(open) => !open && setResettingPasswordAgent(null)}
       />
     </>
   );
