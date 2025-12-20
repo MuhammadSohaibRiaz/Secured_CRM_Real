@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Building2, GripVertical } from 'lucide-react';
+import { Loader2, Mail, Building2, GripVertical, ChevronRight, ArrowDown } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
+import { LeadDetailsDialog } from '@/components/admin/LeadDetailsDialog';
 import {
   DndContext,
   DragOverlay,
@@ -23,20 +23,21 @@ import { useSortable } from '@dnd-kit/sortable';
 type Lead = Database['public']['Tables']['leads']['Row'];
 type LeadStatus = Database['public']['Enums']['lead_status'];
 
-const stages: { status: LeadStatus; label: string; color: string; borderColor: string }[] = [
-  { status: 'new', label: 'New', color: 'bg-blue-500', borderColor: 'border-blue-500/40' },
-  { status: 'contacted', label: 'Contacted', color: 'bg-amber-500', borderColor: 'border-amber-500/40' },
-  { status: 'qualified', label: 'Qualified', color: 'bg-violet-500', borderColor: 'border-violet-500/40' },
-  { status: 'converted', label: 'Converted', color: 'bg-emerald-500', borderColor: 'border-emerald-500/40' },
-  { status: 'lost', label: 'Lost', color: 'bg-rose-500', borderColor: 'border-rose-500/40' },
+const stages: { status: LeadStatus; label: string; color: string; bgColor: string; borderColor: string }[] = [
+  { status: 'new', label: 'New', color: 'bg-blue-500', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/30' },
+  { status: 'contacted', label: 'Contacted', color: 'bg-amber-500', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/30' },
+  { status: 'qualified', label: 'Qualified', color: 'bg-violet-500', bgColor: 'bg-violet-500/10', borderColor: 'border-violet-500/30' },
+  { status: 'converted', label: 'Converted', color: 'bg-emerald-500', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/30' },
+  { status: 'lost', label: 'Lost', color: 'bg-rose-500', bgColor: 'bg-rose-500/10', borderColor: 'border-rose-500/30' },
 ];
 
 interface LeadCardProps {
   lead: Lead;
   isDragging?: boolean;
+  onClick: () => void;
 }
 
-function LeadCard({ lead, isDragging }: LeadCardProps) {
+function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
   const {
     attributes,
     listeners,
@@ -50,20 +51,36 @@ function LeadCard({ lead, isDragging }: LeadCardProps) {
     transition,
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Only trigger click if not dragging
+    if (!transform) {
+      onClick();
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group bg-card border border-border rounded-lg p-3 shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-grab active:cursor-grabbing ${
+      className={`group bg-card border border-border/60 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-primary/40 transition-all ${
         isDragging ? 'opacity-50' : ''
       }`}
-      {...attributes}
-      {...listeners}
     >
       <div className="flex items-start gap-2">
-        <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground flex-shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm text-foreground truncate">{lead.name}</p>
+        <div
+          className="cursor-grab active:cursor-grabbing p-0.5"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground flex-shrink-0" />
+        </div>
+        <div 
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={handleClick}
+        >
+          <p className="font-medium text-sm text-foreground truncate hover:text-primary transition-colors">
+            {lead.name}
+          </p>
           {lead.company && (
             <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1.5 truncate">
               <Building2 className="h-3 w-3 flex-shrink-0" />
@@ -84,7 +101,7 @@ function LeadCard({ lead, isDragging }: LeadCardProps) {
 
 function DraggableLeadCard({ lead }: { lead: Lead }) {
   return (
-    <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
+    <div className="bg-card border border-primary/40 rounded-lg p-3 shadow-xl ring-2 ring-primary/20">
       <div className="flex items-start gap-2">
         <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
@@ -105,47 +122,71 @@ interface StageColumnProps {
   stage: typeof stages[0];
   leads: Lead[];
   isOver: boolean;
+  onLeadClick: (lead: Lead) => void;
 }
 
-function StageColumn({ stage, leads, isOver }: StageColumnProps) {
+function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
   const { setNodeRef } = useDroppable({ id: stage.status });
 
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-64 rounded-xl border-2 transition-all duration-200 ${
+      className={`flex-1 min-w-0 rounded-xl border transition-all duration-200 ${
         isOver 
-          ? `${stage.borderColor} bg-accent/50 scale-[1.02]` 
-          : 'border-border/50 bg-muted/30'
+          ? `border-2 ${stage.borderColor} ${stage.bgColor} scale-[1.01]` 
+          : 'border-border/40 bg-muted/20'
       }`}
     >
       <div className="p-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
             <span className="font-semibold text-sm text-foreground">{stage.label}</span>
           </div>
-          <Badge variant="secondary" className="text-xs font-medium px-2 py-0.5">
+          <Badge variant="secondary" className="text-xs font-medium px-2 py-0.5 bg-background/80">
             {leads.length}
           </Badge>
         </div>
-        <ScrollArea className="h-[320px]">
-          <div className="space-y-2.5 pr-2">
-            {leads.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className={`w-10 h-10 rounded-full ${stage.color}/10 flex items-center justify-center mb-2`}>
-                  <div className={`w-3 h-3 rounded-full ${stage.color}/40`} />
-                </div>
-                <p className="text-xs text-muted-foreground">No leads</p>
-                <p className="text-xs text-muted-foreground/60 mt-0.5">Drop leads here</p>
+        <div className="space-y-2 min-h-[100px] max-h-[200px] overflow-y-auto pr-1">
+          {leads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <div className={`w-8 h-8 rounded-full ${stage.bgColor} flex items-center justify-center mb-2`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${stage.color}/60`} />
               </div>
-            ) : (
-              leads.map((lead) => (
-                <LeadCard key={lead.id} lead={lead} />
-              ))
-            )}
-          </div>
-        </ScrollArea>
+              <p className="text-xs text-muted-foreground">Drop leads here</p>
+            </div>
+          ) : (
+            leads.map((lead) => (
+              <LeadCard 
+                key={lead.id} 
+                lead={lead} 
+                onClick={() => onLeadClick(lead)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlowArrow({ direction = 'right' }: { direction?: 'right' | 'down' }) {
+  if (direction === 'down') {
+    return (
+      <div className="flex justify-center py-2">
+        <div className="flex flex-col items-center">
+          <div className="w-px h-4 bg-gradient-to-b from-border to-muted-foreground/40" />
+          <ArrowDown className="h-4 w-4 text-muted-foreground/60" />
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="flex items-center justify-center px-1">
+      <div className="flex items-center">
+        <div className="w-4 h-px bg-gradient-to-r from-border to-muted-foreground/40" />
+        <ChevronRight className="h-4 w-4 text-muted-foreground/50 -ml-1" />
       </div>
     </div>
   );
@@ -156,6 +197,7 @@ export function LeadPipeline() {
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const { toast } = useToast();
 
   const sensors = useSensors(
@@ -249,7 +291,15 @@ export function LeadPipeline() {
     }
   };
 
+  const handleLeadClick = (lead: Lead) => {
+    setSelectedLead(lead);
+  };
+
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null;
+
+  // Separate main flow from lost
+  const mainStages = stages.filter(s => s.status !== 'lost');
+  const lostStage = stages.find(s => s.status === 'lost')!;
 
   if (loading) {
     return (
@@ -262,38 +312,63 @@ export function LeadPipeline() {
   }
 
   return (
-    <Card className="border-border/50 overflow-hidden">
-      <CardHeader className="border-b border-border/50 bg-muted/20">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold">Lead Pipeline</CardTitle>
-          <Badge variant="outline" className="font-medium">
-            {leads.length} total leads
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="p-6">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {stages.map((stage) => (
-              <StageColumn
-                key={stage.status}
-                stage={stage}
-                leads={getLeadsByStatus(stage.status)}
-                isOver={overId === stage.status}
-              />
-            ))}
+    <>
+      <Card className="border-border/50 overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-muted/20 py-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold">Lead Pipeline</CardTitle>
+            <Badge variant="outline" className="font-medium">
+              {leads.length} total leads
+            </Badge>
           </div>
-          <DragOverlay>
-            {activeLead ? <DraggableLeadCard lead={activeLead} /> : null}
-          </DragOverlay>
-        </DndContext>
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent className="p-5">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            {/* Main Flow: New → Contacted → Qualified → Converted */}
+            <div className="grid grid-cols-7 gap-0 items-stretch">
+              {mainStages.map((stage, index) => (
+                <div key={stage.status} className="contents">
+                  <StageColumn
+                    stage={stage}
+                    leads={getLeadsByStatus(stage.status)}
+                    isOver={overId === stage.status}
+                    onLeadClick={handleLeadClick}
+                  />
+                  {index < mainStages.length - 1 && <FlowArrow direction="right" />}
+                </div>
+              ))}
+            </div>
+
+            {/* Flow Arrow Down to Lost */}
+            <FlowArrow direction="down" />
+
+            {/* Lost Stage */}
+            <div className="max-w-xs mx-auto">
+              <StageColumn
+                stage={lostStage}
+                leads={getLeadsByStatus(lostStage.status)}
+                isOver={overId === lostStage.status}
+                onLeadClick={handleLeadClick}
+              />
+            </div>
+
+            <DragOverlay>
+              {activeLead ? <DraggableLeadCard lead={activeLead} /> : null}
+            </DragOverlay>
+          </DndContext>
+        </CardContent>
+      </Card>
+
+      <LeadDetailsDialog
+        lead={selectedLead}
+        onClose={() => setSelectedLead(null)}
+      />
+    </>
   );
 }
