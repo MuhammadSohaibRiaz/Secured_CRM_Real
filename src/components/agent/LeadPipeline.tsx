@@ -140,13 +140,13 @@ function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-w-0 rounded-xl border transition-all duration-200 ${
+      className={`rounded-xl border transition-all duration-200 h-full ${
         isOver 
           ? `border-2 ${stage.borderColor} ${stage.bgColor} scale-[1.01]` 
           : 'border-border/40 bg-muted/20'
       }`}
     >
-      <div className="p-4">
+      <div className="p-4 h-full flex flex-col">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
@@ -156,7 +156,7 @@ function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
             {leads.length}
           </Badge>
         </div>
-        <div className="space-y-2 min-h-[100px] max-h-[200px] overflow-y-auto pr-1">
+        <div className="space-y-2 flex-1">
           {leads.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <div className={`w-8 h-8 rounded-full ${stage.bgColor} flex items-center justify-center mb-2`}>
@@ -339,26 +339,27 @@ export function LeadPipeline() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            {/* Main Flow: New → Contacted → Qualified → Converted */}
-            <div className="grid grid-cols-7 gap-0 items-stretch">
-              {mainStages.map((stage, index) => (
-                <div key={stage.status} className="contents">
-                  <StageColumn
-                    stage={stage}
-                    leads={getLeadsByStatus(stage.status)}
-                    isOver={overId === stage.status}
-                    onLeadClick={handleLeadClick}
-                  />
-                  {index < mainStages.length - 1 && <FlowArrow direction="right" />}
-                </div>
+            {/* Row 1: New → Contacted → Qualified */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              {mainStages.slice(0, 3).map((stage) => (
+                <StageColumn
+                  key={stage.status}
+                  stage={stage}
+                  leads={getLeadsByStatus(stage.status)}
+                  isOver={overId === stage.status}
+                  onLeadClick={handleLeadClick}
+                />
               ))}
             </div>
 
-            {/* Flow Arrow Down to Lost */}
-            <FlowArrow direction="down" />
-
-            {/* Lost Stage */}
-            <div className="max-w-xs mx-auto">
+            {/* Row 2: Converted + Lost */}
+            <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
+              <StageColumn
+                stage={mainStages[3]}
+                leads={getLeadsByStatus(mainStages[3].status)}
+                isOver={overId === mainStages[3].status}
+                onLeadClick={handleLeadClick}
+              />
               <StageColumn
                 stage={lostStage}
                 leads={getLeadsByStatus(lostStage.status)}
