@@ -6,9 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Mail, Phone, Building2, Trash2, UserPlus } from 'lucide-react';
+import { Loader2, Mail, Phone, Building2, Trash2, UserPlus, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { AssignLeadDialog } from './AssignLeadDialog';
+import { LeadDetailsDialog } from './LeadDetailsDialog';
 
 type Lead = Tables<'leads'>;
 type LeadStatus = Enums<'lead_status'>;
@@ -24,6 +25,7 @@ const statusColors: Record<LeadStatus, string> = {
 export function LeadList() {
   const queryClient = useQueryClient();
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
+  const [viewingLead, setViewingLead] = useState<Lead | null>(null);
 
   const { data: leads, isLoading } = useQuery({
     queryKey: ['leads'],
@@ -154,7 +156,7 @@ export function LeadList() {
           </TableHeader>
           <TableBody>
             {leads.map((lead) => (
-              <TableRow key={lead.id}>
+              <TableRow key={lead.id} className="cursor-pointer" onClick={() => setViewingLead(lead)}>
                 <TableCell className="font-medium">{lead.name}</TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
@@ -210,7 +212,15 @@ export function LeadList() {
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setViewingLead(lead)}
+                      title="View details"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -239,6 +249,11 @@ export function LeadList() {
         lead={assigningLead}
         agents={agents || []}
         onClose={() => setAssigningLead(null)}
+      />
+
+      <LeadDetailsDialog
+        lead={viewingLead}
+        onClose={() => setViewingLead(null)}
       />
     </>
   );
