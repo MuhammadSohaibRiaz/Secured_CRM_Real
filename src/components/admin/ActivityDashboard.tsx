@@ -51,8 +51,15 @@ export function ActivityDashboard() {
   const [sendingAlert, setSendingAlert] = useState<string | null>(null);
   const notifiedUsers = useRef<Set<string>>(new Set());
 
-  const sendSuspiciousActivityAlert = async (pattern: SuspiciousPattern) => {
-    setSendingAlert(pattern.userId);
+  const sendSuspiciousActivityAlert = async (pattern: SuspiciousPattern, isAutomatic = false) => {
+    // Skip if already notified
+    if (notifiedUsers.current.has(pattern.userId)) {
+      return;
+    }
+
+    if (!isAutomatic) {
+      setSendingAlert(pattern.userId);
+    }
     
     try {
       const { data, error } = await supabase.functions.invoke('notify-suspicious-activity', {
@@ -69,12 +76,23 @@ export function ActivityDashboard() {
       if (error) throw error;
       
       notifiedUsers.current.add(pattern.userId);
-      toast.success(`Security alert sent for ${pattern.userName}`);
+      if (isAutomatic) {
+        toast.warning(`🚨 Automatic security alert sent for ${pattern.userName}`, {
+          description: `${pattern.revealCount} data reveals in ${pattern.timeWindowMinutes} minutes`,
+          duration: 10000,
+        });
+      } else {
+        toast.success(`Security alert sent for ${pattern.userName}`);
+      }
     } catch (error) {
       console.error('Failed to send alert:', error);
-      toast.error('Failed to send security alert');
+      if (!isAutomatic) {
+        toast.error('Failed to send security alert');
+      }
     } finally {
-      setSendingAlert(null);
+      if (!isAutomatic) {
+        setSendingAlert(null);
+      }
     }
   };
 
@@ -164,6 +182,13 @@ export function ActivityDashboard() {
       }));
 
     setSuspiciousPatterns(suspicious);
+
+    // Automatically send alerts for new suspicious patterns
+    suspicious.forEach(pattern => {
+      if (!notifiedUsers.current.has(pattern.userId)) {
+        sendSuspiciousActivityAlert(pattern, true);
+      }
+    });
   };
 
   useEffect(() => {
@@ -256,7 +281,7 @@ export function ActivityDashboard() {
                       ) : (
                         <Mail className="h-4 w-4 mr-1" />
                       )}
-                      {notifiedUsers.current.has(pattern.userId) ? 'Notified' : 'Send Alert'}
+                      {notifiedUsers.current.has(pattern.userId) ? 'Alert Sent' : 'Resend Alert'}
                     </Button>
                     <Badge variant="destructive">High Risk</Badge>
                   </div>
