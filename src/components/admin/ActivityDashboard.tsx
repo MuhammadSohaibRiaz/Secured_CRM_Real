@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,9 +13,11 @@ import {
   Search,
   User,
   Clock,
-  Filter
+  Mail,
+  Loader2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
 type ActivityLog = Database['public']['Tables']['activity_logs']['Row'];
@@ -28,8 +30,13 @@ interface EnrichedActivityLog extends ActivityLog {
 interface SuspiciousPattern {
   userId: string;
   userName: string;
+  userEmail: string;
   revealCount: number;
   timeWindowMinutes: number;
+  recentActions: Array<{
+    action: string;
+    timestamp: string;
+  }>;
 }
 
 const SUSPICIOUS_THRESHOLD = 10; // More than 10 reveals in 5 minutes is suspicious
@@ -41,6 +48,35 @@ export function ActivityDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterAction, setFilterAction] = useState<string | null>(null);
+  const [sendingAlert, setSendingAlert] = useState<string | null>(null);
+  const notifiedUsers = useRef<Set<string>>(new Set());
+
+  const sendSuspiciousActivityAlert = async (pattern: SuspiciousPattern) => {
+    setSendingAlert(pattern.userId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('notify-suspicious-activity', {
+        body: {
+          agentId: pattern.userId,
+          agentName: pattern.userName,
+          agentEmail: pattern.userEmail,
+          revealCount: pattern.revealCount,
+          timeWindowMinutes: pattern.timeWindowMinutes,
+          recentActions: pattern.recentActions,
+        },
+      });
+
+      if (error) throw error;
+      
+      notifiedUsers.current.add(pattern.userId);
+      toast.success(`Security alert sent for ${pattern.userName}`);
+    } catch (error) {
+      console.error('Failed to send alert:', error);
+      toast.error('Failed to send security alert');
+    } finally {
+      setSendingAlert(null);
+    }
+  };
 
   const fetchActivities = async () => {
     setLoading(true);
@@ -91,26 +127,40 @@ export function ActivityDashboard() {
       return isRecent && isReveal;
     });
 
-    // Group by user
-    const userRevealCounts: Record<string, { count: number; name: string }> = {};
+    // Group by user with actions
+    const userRevealData: Record<string, { 
+      count: number; 
+      name: string; 
+      email: string;
+      actions: Array<{ action: string; timestamp: string }>;
+    }> = {};
+    
     recentReveals.forEach(log => {
-      if (!userRevealCounts[log.user_id]) {
-        userRevealCounts[log.user_id] = { 
+      if (!userRevealData[log.user_id]) {
+        userRevealData[log.user_id] = { 
           count: 0, 
-          name: log.profile?.full_name || 'Unknown User' 
+          name: log.profile?.full_name || 'Unknown User',
+          email: log.profile?.email || '',
+          actions: []
         };
       }
-      userRevealCounts[log.user_id].count++;
+      userRevealData[log.user_id].count++;
+      userRevealData[log.user_id].actions.push({
+        action: log.action,
+        timestamp: log.created_at
+      });
     });
 
     // Find suspicious users
-    const suspicious: SuspiciousPattern[] = Object.entries(userRevealCounts)
+    const suspicious: SuspiciousPattern[] = Object.entries(userRevealData)
       .filter(([_, data]) => data.count >= SUSPICIOUS_THRESHOLD)
       .map(([userId, data]) => ({
         userId,
         userName: data.name,
+        userEmail: data.email,
         revealCount: data.count,
         timeWindowMinutes: TIME_WINDOW_MINUTES,
+        recentActions: data.actions,
       }));
 
     setSuspiciousPatterns(suspicious);
@@ -194,7 +244,22 @@ export function ActivityDashboard() {
                       </p>
                     </div>
                   </div>
-                  <Badge variant="destructive">High Risk</Badge>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => sendSuspiciousActivityAlert(pattern)}
+                      disabled={sendingAlert === pattern.userId || notifiedUsers.current.has(pattern.userId)}
+                    >
+                      {sendingAlert === pattern.userId ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Mail className="h-4 w-4 mr-1" />
+                      )}
+                      {notifiedUsers.current.has(pattern.userId) ? 'Notified' : 'Send Alert'}
+                    </Button>
+                    <Badge variant="destructive">High Risk</Badge>
+                  </div>
                 </div>
               ))}
             </div>
