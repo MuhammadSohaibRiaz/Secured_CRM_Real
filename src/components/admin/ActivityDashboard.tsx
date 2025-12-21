@@ -39,8 +39,8 @@ interface SuspiciousPattern {
   }>;
 }
 
-const SUSPICIOUS_THRESHOLD = 10; // More than 10 reveals in 5 minutes is suspicious
-const TIME_WINDOW_MINUTES = 5;
+const SUSPICIOUS_THRESHOLD = 3; // More than 3 reveals in 2 minutes is suspicious (lowered for testing)
+const TIME_WINDOW_MINUTES = 2;
 
 export function ActivityDashboard() {
   const [activities, setActivities] = useState<EnrichedActivityLog[]>([]);
