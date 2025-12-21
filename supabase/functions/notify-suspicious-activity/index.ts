@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Generic error messages to prevent information leakage
+const ERROR_MESSAGES = {
+  UNAUTHORIZED: 'Unauthorized',
+  FORBIDDEN: 'Access denied',
+  CONFIG_ERROR: 'Service configuration error',
+  INTERNAL_ERROR: 'Operation failed. Please try again.',
+} as const;
+
 interface SuspiciousActivityRequest {
   agentId: string;
   agentName: string;
@@ -31,7 +39,7 @@ const handler = async (req: Request): Promise<Response> => {
     
     if (!resendApiKey) {
       console.error('RESEND_API_KEY not configured');
-      return new Response(JSON.stringify({ error: 'Resend API key not configured' }), {
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.CONFIG_ERROR }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -39,7 +47,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (!adminEmail) {
       console.error('ADMIN_NOTIFICATION_EMAIL not configured');
-      return new Response(JSON.stringify({ error: 'Admin email not configured' }), {
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.CONFIG_ERROR }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -48,7 +56,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Verify the request is from an authenticated admin
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -62,7 +70,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      console.error('Authentication failed:', authError);
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -75,7 +84,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (!isAdmin) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -167,7 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
     
     if (!emailResponse.ok) {
       console.error("Failed to send email:", emailResult);
-      return new Response(JSON.stringify({ error: 'Failed to send email', details: emailResult }), {
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -196,8 +205,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error: unknown) {
     console.error("Error in notify-suspicious-activity function:", error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
