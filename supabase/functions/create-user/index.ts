@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Generic error messages to prevent information leakage
+const ERROR_MESSAGES = {
+  UNAUTHORIZED: 'Unauthorized',
+  FORBIDDEN: 'Access denied',
+  BAD_REQUEST: 'Invalid request',
+  INTERNAL_ERROR: 'Operation failed. Please try again.',
+  VALIDATION_ERROR: 'Validation failed',
+} as const;
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -47,7 +56,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -61,7 +70,7 @@ async function verifyAdmin(req: Request, supabaseAdmin: any): Promise<{ isAdmin:
       isAdmin: false,
       adminId: null,
       error: new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     };
@@ -76,7 +85,7 @@ async function verifyAdmin(req: Request, supabaseAdmin: any): Promise<{ isAdmin:
       isAdmin: false,
       adminId: null,
       error: new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     };
@@ -93,7 +102,7 @@ async function verifyAdmin(req: Request, supabaseAdmin: any): Promise<{ isAdmin:
       isAdmin: false,
       adminId: null,
       error: new Response(
-        JSON.stringify({ error: 'Only admins can perform this action' }),
+        JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     };
@@ -107,22 +116,15 @@ async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Prom
 
   if (!userId || !fullName || !email) {
     return new Response(
-      JSON.stringify({ error: 'Missing required fields: userId, fullName, email' }),
+      JSON.stringify({ error: ERROR_MESSAGES.BAD_REQUEST }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
   // Validate input lengths
-  if (fullName.length > 100) {
+  if (fullName.length > 100 || email.length > 255) {
     return new Response(
-      JSON.stringify({ error: 'Name must be less than 100 characters' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  if (email.length > 255) {
-    return new Response(
-      JSON.stringify({ error: 'Email must be less than 255 characters' }),
+      JSON.stringify({ error: ERROR_MESSAGES.VALIDATION_ERROR }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -142,7 +144,7 @@ async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Prom
 
   if (!roleData || roleData.role !== 'agent') {
     return new Response(
-      JSON.stringify({ error: 'Can only edit agent accounts' }),
+      JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -158,7 +160,7 @@ async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Prom
   if (profileError) {
     console.error('Error updating profile:', profileError);
     return new Response(
-      JSON.stringify({ error: 'Failed to update profile' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -171,7 +173,7 @@ async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Prom
   if (authError) {
     console.error('Error updating auth user:', authError);
     return new Response(
-      JSON.stringify({ error: 'Failed to update email in auth system' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -189,7 +191,7 @@ async function handleResetPassword(req: Request, supabaseAdmin: any, body: any):
 
   if (!userId || !newPassword) {
     return new Response(
-      JSON.stringify({ error: 'Missing required fields: userId, newPassword' }),
+      JSON.stringify({ error: ERROR_MESSAGES.BAD_REQUEST }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -197,7 +199,7 @@ async function handleResetPassword(req: Request, supabaseAdmin: any, body: any):
   // Validate password length
   if (newPassword.length < 6) {
     return new Response(
-      JSON.stringify({ error: 'Password must be at least 6 characters' }),
+      JSON.stringify({ error: ERROR_MESSAGES.VALIDATION_ERROR }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -217,7 +219,7 @@ async function handleResetPassword(req: Request, supabaseAdmin: any, body: any):
 
   if (!roleData || roleData.role !== 'agent') {
     return new Response(
-      JSON.stringify({ error: 'Can only reset passwords for agent accounts' }),
+      JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -232,7 +234,7 @@ async function handleResetPassword(req: Request, supabaseAdmin: any, body: any):
   if (authError) {
     console.error('Error resetting password:', authError);
     return new Response(
-      JSON.stringify({ error: 'Failed to reset password' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -250,7 +252,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
 
   if (!userId) {
     return new Response(
-      JSON.stringify({ error: 'Missing required field: userId' }),
+      JSON.stringify({ error: ERROR_MESSAGES.BAD_REQUEST }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -264,7 +266,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
   // Prevent admin from deleting themselves
   if (userId === adminId) {
     return new Response(
-      JSON.stringify({ error: 'Cannot delete your own account' }),
+      JSON.stringify({ error: ERROR_MESSAGES.BAD_REQUEST }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -278,7 +280,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
 
   if (!roleData || roleData.role !== 'agent') {
     return new Response(
-      JSON.stringify({ error: 'Can only delete agent accounts' }),
+      JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -294,7 +296,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
   if (roleError) {
     console.error('Error deleting role:', roleError);
     return new Response(
-      JSON.stringify({ error: 'Failed to delete user role' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -307,7 +309,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
   if (profileError) {
     console.error('Error deleting profile:', profileError);
     return new Response(
-      JSON.stringify({ error: 'Failed to delete user profile' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -317,7 +319,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
   if (authError) {
     console.error('Error deleting auth user:', authError);
     return new Response(
-      JSON.stringify({ error: 'Failed to delete auth user' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -356,14 +358,14 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Pr
   // Validate inputs
   if (!email || !password || !fullName || !role) {
     return new Response(
-      JSON.stringify({ error: 'Missing required fields: email, password, fullName, role' }),
+      JSON.stringify({ error: ERROR_MESSAGES.BAD_REQUEST }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
   if (!['admin', 'agent'].includes(role)) {
     return new Response(
-      JSON.stringify({ error: 'Invalid role. Must be "admin" or "agent"' }),
+      JSON.stringify({ error: ERROR_MESSAGES.VALIDATION_ERROR }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -371,7 +373,7 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Pr
   // Only allow creating admins during bootstrap
   if (role === 'admin' && !isBootstrap) {
     return new Response(
-      JSON.stringify({ error: 'Only the first admin can be created via bootstrap' }),
+      JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -386,7 +388,7 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Pr
   if (createError) {
     console.error('Error creating user:', createError);
     return new Response(
-      JSON.stringify({ error: createError.message }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -409,7 +411,7 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Pr
     console.error('Error creating profile:', profileError);
     await supabaseAdmin.auth.admin.deleteUser(userId);
     return new Response(
-      JSON.stringify({ error: 'Failed to create profile' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -427,7 +429,7 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Pr
     await supabaseAdmin.from('profiles').delete().eq('user_id', userId);
     await supabaseAdmin.auth.admin.deleteUser(userId);
     return new Response(
-      JSON.stringify({ error: 'Failed to assign role' }),
+      JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
