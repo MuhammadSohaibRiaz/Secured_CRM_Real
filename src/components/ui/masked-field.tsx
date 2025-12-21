@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff, Loader2, Timer } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Timer, AlertCircle } from 'lucide-react';
 import { Button } from './button';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface MaskedFieldProps {
   value: string | null | undefined; // This is the pre-masked value from server
@@ -29,6 +30,7 @@ export function MaskedField({
   const [isLoading, setIsLoading] = useState(false);
   const [revealedValue, setRevealedValue] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(autoHideSeconds);
+  const [rateLimited, setRateLimited] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -86,10 +88,25 @@ export function MaskedField({
 
         if (error) {
           console.error('Failed to reveal:', error);
+          
+          // Check if it's a rate limit error
+          if (error.message?.includes('Rate limit exceeded')) {
+            setRateLimited(true);
+            toast.error('Rate limit exceeded', {
+              description: 'Maximum 20 reveals per hour. Please wait before revealing more data.',
+              icon: <AlertCircle className="h-4 w-4" />,
+            });
+          } else {
+            toast.error('Failed to reveal data', {
+              description: error.message,
+            });
+          }
+          
           setIsLoading(false);
           return;
         }
 
+        setRateLimited(false);
         setRevealedValue(data);
         setIsRevealed(true);
       } catch (err) {
@@ -142,11 +159,12 @@ export function MaskedField({
           size="icon"
           className={cn(
             "h-5 w-5 opacity-60 hover:opacity-100 transition-opacity",
+            rateLimited && "text-destructive opacity-100",
             iconClassName
           )}
           onClick={handleReveal}
-          disabled={isLoading}
-          title={isRevealed ? 'Hide' : 'Reveal (logged, auto-hides in 60s)'}
+          disabled={isLoading || rateLimited}
+          title={rateLimited ? 'Rate limit exceeded (20/hour)' : isRevealed ? 'Hide' : 'Reveal (logged, auto-hides in 60s)'}
         >
           {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />

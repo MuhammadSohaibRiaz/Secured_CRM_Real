@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SecurityWatermarkProps {
   opacity?: number;
@@ -9,18 +10,47 @@ interface SecurityWatermarkProps {
 export function SecurityWatermark({ opacity = 0.03, className }: SecurityWatermarkProps) {
   const { authUser } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [clientIp, setClientIp] = useState<string>('');
 
+  // Fetch client IP on mount
+  useEffect(() => {
+    const fetchClientIp = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-client-ip');
+        if (!error && data?.ip) {
+          setClientIp(data.ip);
+        }
+      } catch (err) {
+        console.error('Failed to fetch client IP:', err);
+      }
+    };
+
+    fetchClientIp();
+  }, []);
+
+  // Update time every minute
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, 60000);
 
     return () => clearInterval(interval);
   }, []);
 
   if (!authUser) return null;
 
-  const watermarkText = `${authUser.fullName} • ${authUser.email} • ${currentTime.toLocaleString()}`;
+  // Build watermark text with IP if available
+  const watermarkParts = [
+    authUser.fullName,
+    authUser.email,
+    currentTime.toLocaleString(),
+  ];
+  
+  if (clientIp) {
+    watermarkParts.push(`IP: ${clientIp}`);
+  }
+
+  const watermarkText = watermarkParts.join(' • ');
 
   return (
     <div 
