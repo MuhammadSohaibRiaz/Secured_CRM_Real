@@ -190,7 +190,51 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      leads_masked: {
+        Row: {
+          assigned_to: string | null
+          company: string | null
+          created_at: string | null
+          created_by: string | null
+          email: string | null
+          id: string | null
+          name: string | null
+          notes: string | null
+          phone: string | null
+          source: string | null
+          status: Database["public"]["Enums"]["lead_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          email?: never
+          id?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: never
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          email?: never
+          id?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: never
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_role: {
@@ -205,6 +249,12 @@ export type Database = {
         Returns: boolean
       }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      mask_email: { Args: { email: string }; Returns: string }
+      mask_phone: { Args: { phone: string }; Returns: string }
+      reveal_lead_pii: {
+        Args: { _field: string; _lead_id: string }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "agent"

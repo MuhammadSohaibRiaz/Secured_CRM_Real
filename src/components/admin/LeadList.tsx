@@ -40,12 +40,14 @@ export function LeadList() {
   const { data: leads, isLoading } = useQuery({
     queryKey: ['leads'],
     queryFn: async () => {
+      // Fetch from leads_masked view for server-side PII masking
       const { data, error } = await supabase
-        .from('leads')
+        .from('leads_masked')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      // Cast to Lead type since masked view has same structure
       return data as Lead[];
     },
   });
