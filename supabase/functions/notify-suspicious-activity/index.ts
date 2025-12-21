@@ -1,10 +1,36 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Dynamic CORS - validates origin against allowed list
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') || '').split(',').filter(Boolean);
+
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin');
+  
+  // If ALLOWED_ORIGINS is not configured, allow all (dev mode)
+  // In production, set ALLOWED_ORIGINS env variable
+  if (ALLOWED_ORIGINS.length === 0) {
+    return {
+      'Access-Control-Allow-Origin': origin || '*',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    };
+  }
+  
+  // Validate origin against whitelist
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    return {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Credentials': 'true',
+    };
+  }
+  
+  // Unknown origin - return restrictive headers
+  return {
+    'Access-Control-Allow-Origin': 'null',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+}
 
 // Generic error messages to prevent information leakage
 const ERROR_MESSAGES = {
@@ -28,6 +54,8 @@ interface SuspiciousActivityRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req);
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -53,7 +81,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Verify the request is from an authenticated admin
+    // Verify the request is from an authenticated admin using service role key
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }), {
@@ -62,13 +90,22 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const supabaseClient = createClient(
+    // Use service role key for consistent admin verification (same pattern as create-user)
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
     );
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    // Extract and verify the user's token
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
     if (authError || !user) {
       console.error('Authentication failed:', authError);
       return new Response(JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }), {
@@ -77,13 +114,14 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Check if user is admin
-    const { data: isAdmin } = await supabaseClient.rpc('has_role', { 
-      _user_id: user.id, 
-      _role: 'admin' 
-    });
+    // Check if user is admin using service role (bypasses RLS for consistent behavior)
+    const { data: roleData } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
 
-    if (!isAdmin) {
+    if (!roleData || roleData.role !== 'admin') {
       return new Response(JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -184,8 +222,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Suspicious activity notification sent:", emailResult);
 
-    // Log the alert in activity_logs
-    await supabaseClient.from('activity_logs').insert({
+    // Log the alert in activity_logs using service role (bypasses RLS)
+    await supabaseAdmin.from('activity_logs').insert({
       user_id: user.id,
       action: 'security_alert_sent',
       entity_type: 'agent',
@@ -204,6 +242,7 @@ const handler = async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: unknown) {
+    const corsHeaders = getCorsHeaders(req);
     console.error("Error in notify-suspicious-activity function:", error);
     return new Response(JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR }), {
       status: 500,

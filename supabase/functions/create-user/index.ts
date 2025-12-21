@@ -1,10 +1,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Dynamic CORS - validates origin against allowed list
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') || '').split(',').filter(Boolean);
+
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin');
+  
+  // If ALLOWED_ORIGINS is not configured, allow all (dev mode)
+  // In production, set ALLOWED_ORIGINS env variable
+  if (ALLOWED_ORIGINS.length === 0) {
+    return {
+      'Access-Control-Allow-Origin': origin || '*',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    };
+  }
+  
+  // Validate origin against whitelist
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    return {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Credentials': 'true',
+    };
+  }
+  
+  // Unknown origin - return restrictive headers
+  return {
+    'Access-Control-Allow-Origin': 'null',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+}
 
 // Generic error messages to prevent information leakage
 const ERROR_MESSAGES = {
@@ -15,7 +41,14 @@ const ERROR_MESSAGES = {
   VALIDATION_ERROR: 'Validation failed',
 } as const;
 
+// Email validation function
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -38,21 +71,21 @@ serve(async (req) => {
 
     // Handle DELETE action
     if (action === 'delete') {
-      return await handleDeleteUser(req, supabaseAdmin, body);
+      return await handleDeleteUser(req, supabaseAdmin, body, corsHeaders);
     }
 
     // Handle EDIT action
     if (action === 'edit') {
-      return await handleEditUser(req, supabaseAdmin, body);
+      return await handleEditUser(req, supabaseAdmin, body, corsHeaders);
     }
 
     // Handle RESET PASSWORD action
     if (action === 'reset-password') {
-      return await handleResetPassword(req, supabaseAdmin, body);
+      return await handleResetPassword(req, supabaseAdmin, body, corsHeaders);
     }
 
     // Handle CREATE action (default)
-    return await handleCreateUser(req, supabaseAdmin, body);
+    return await handleCreateUser(req, supabaseAdmin, body, corsHeaders);
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(
@@ -62,7 +95,7 @@ serve(async (req) => {
   }
 });
 
-async function verifyAdmin(req: Request, supabaseAdmin: any): Promise<{ isAdmin: boolean; adminId: string | null; error?: Response }> {
+async function verifyAdmin(req: Request, supabaseAdmin: any, corsHeaders: Record<string, string>): Promise<{ isAdmin: boolean; adminId: string | null; error?: Response }> {
   const authHeader = req.headers.get('Authorization');
   
   if (!authHeader) {
@@ -111,7 +144,7 @@ async function verifyAdmin(req: Request, supabaseAdmin: any): Promise<{ isAdmin:
   return { isAdmin: true, adminId: user.id };
 }
 
-async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Promise<Response> {
+async function handleEditUser(req: Request, supabaseAdmin: any, body: any, corsHeaders: Record<string, string>): Promise<Response> {
   const { userId, fullName, email } = body;
 
   if (!userId || !fullName || !email) {
@@ -129,8 +162,16 @@ async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Prom
     );
   }
 
+  // Validate email format
+  if (!isValidEmail(email.trim())) {
+    return new Response(
+      JSON.stringify({ error: ERROR_MESSAGES.VALIDATION_ERROR }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   // Verify admin
-  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin);
+  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin, corsHeaders);
   if (!isAdmin || error) {
     return error!;
   }
@@ -186,7 +227,7 @@ async function handleEditUser(req: Request, supabaseAdmin: any, body: any): Prom
   );
 }
 
-async function handleResetPassword(req: Request, supabaseAdmin: any, body: any): Promise<Response> {
+async function handleResetPassword(req: Request, supabaseAdmin: any, body: any, corsHeaders: Record<string, string>): Promise<Response> {
   const { userId, newPassword } = body;
 
   if (!userId || !newPassword) {
@@ -205,7 +246,7 @@ async function handleResetPassword(req: Request, supabaseAdmin: any, body: any):
   }
 
   // Verify admin
-  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin);
+  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin, corsHeaders);
   if (!isAdmin || error) {
     return error!;
   }
@@ -247,7 +288,7 @@ async function handleResetPassword(req: Request, supabaseAdmin: any, body: any):
   );
 }
 
-async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Promise<Response> {
+async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any, corsHeaders: Record<string, string>): Promise<Response> {
   const { userId } = body;
 
   if (!userId) {
@@ -258,7 +299,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
   }
 
   // Verify admin
-  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin);
+  const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin, corsHeaders);
   if (!isAdmin || error) {
     return error!;
   }
@@ -332,7 +373,7 @@ async function handleDeleteUser(req: Request, supabaseAdmin: any, body: any): Pr
   );
 }
 
-async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Promise<Response> {
+async function handleCreateUser(req: Request, supabaseAdmin: any, body: any, corsHeaders: Record<string, string>): Promise<Response> {
   const { email, password, fullName, role, adminSecret } = body;
 
   // Validate admin secret - this is a simple bootstrap mechanism
@@ -347,7 +388,7 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Pr
     console.log('Bootstrap mode: Creating first admin user');
   } else {
     // Normal mode - admin creating agents
-    const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin);
+    const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin, corsHeaders);
     if (!isAdmin || error) {
       return error!;
     }
@@ -359,6 +400,14 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any): Pr
   if (!email || !password || !fullName || !role) {
     return new Response(
       JSON.stringify({ error: ERROR_MESSAGES.BAD_REQUEST }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate email format
+  if (!isValidEmail(email.trim())) {
+    return new Response(
+      JSON.stringify({ error: ERROR_MESSAGES.VALIDATION_ERROR }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
