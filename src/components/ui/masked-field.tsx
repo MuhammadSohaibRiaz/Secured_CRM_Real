@@ -1,12 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Loader2, Timer } from 'lucide-react';
 import { Button } from './button';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface MaskedFieldProps {
-  value: string | null | undefined;
+  value: string | null | undefined; // This is the pre-masked value from server
   type: 'email' | 'phone';
   entityId: string;
   entityType?: string;
@@ -14,34 +13,6 @@ interface MaskedFieldProps {
   iconClassName?: string;
   showIcon?: boolean;
   autoHideSeconds?: number; // Time-limited exposure (default: 60)
-}
-
-function maskEmail(email: string): string {
-  const [localPart, domain] = email.split('@');
-  if (!domain) return '***@***';
-  
-  const maskedLocal = localPart.length > 2 
-    ? `${localPart[0]}${'*'.repeat(Math.min(localPart.length - 1, 5))}` 
-    : '*'.repeat(localPart.length);
-  
-  return `${maskedLocal}@${domain}`;
-}
-
-function maskPhone(phone: string): string {
-  // Remove all non-digit characters for processing
-  const digits = phone.replace(/\D/g, '');
-  
-  if (digits.length < 4) return '*'.repeat(phone.length);
-  
-  // Show last 4 digits, mask the rest
-  const lastFour = digits.slice(-4);
-  const maskedPart = '*'.repeat(Math.max(digits.length - 4, 0));
-  
-  // Try to preserve original formatting
-  if (phone.includes('(')) {
-    return `(***) ***-${lastFour}`;
-  }
-  return `${maskedPart}${lastFour}`;
 }
 
 export function MaskedField({ 
@@ -55,15 +26,11 @@ export function MaskedField({
   autoHideSeconds = 60 
 }: MaskedFieldProps) {
   const [isRevealed, setIsRevealed] = useState(false);
-  const [isLogging, setIsLogging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [revealedValue, setRevealedValue] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(autoHideSeconds);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
-  const { authUser } = useAuth();
-
-  const maskedValue = value 
-    ? (type === 'email' ? maskEmail(value) : maskPhone(value))
-    : null;
 
   // Clear timers on unmount
   useEffect(() => {
@@ -73,7 +40,7 @@ export function MaskedField({
     };
   }, []);
 
-  // Handle auto-hide timer
+  // Handle auto-hide timer when revealed
   useEffect(() => {
     if (isRevealed && autoHideSeconds > 0) {
       setRemainingSeconds(autoHideSeconds);
@@ -91,6 +58,7 @@ export function MaskedField({
       // Auto-hide timer
       timerRef.current = setTimeout(() => {
         setIsRevealed(false);
+        setRevealedValue(null);
         if (countdownRef.current) clearInterval(countdownRef.current);
       }, autoHideSeconds * 1000);
 
@@ -101,43 +69,38 @@ export function MaskedField({
     }
   }, [isRevealed, autoHideSeconds]);
 
-  const logReveal = useCallback(async () => {
-    if (!authUser?.id || !value) return;
-
-    try {
-      const { error } = await supabase
-        .from('activity_logs')
-        .insert({
-          user_id: authUser.id,
-          action: `revealed_${type}`,
-          entity_type: entityType,
-          entity_id: entityId,
-          details: {
-            field_type: type,
-            timestamp: new Date().toISOString(),
-          }
-        });
-
-      if (error) {
-        console.error('Failed to log reveal:', error);
-      }
-    } catch (err) {
-      console.error('Error logging reveal:', err);
-    }
-  }, [authUser?.id, entityId, entityType, type, value]);
-
   const handleReveal = async (e: React.MouseEvent) => {
     e.stopPropagation();
     
     if (!value) return;
     
     if (!isRevealed) {
-      setIsLogging(true);
-      await logReveal();
-      setIsLogging(false);
-      setIsRevealed(true);
+      setIsLoading(true);
+      
+      try {
+        // Call server-side function to reveal PII (also logs the action)
+        const { data, error } = await supabase.rpc('reveal_lead_pii', {
+          _lead_id: entityId,
+          _field: type
+        });
+
+        if (error) {
+          console.error('Failed to reveal:', error);
+          setIsLoading(false);
+          return;
+        }
+
+        setRevealedValue(data);
+        setIsRevealed(true);
+      } catch (err) {
+        console.error('Error revealing field:', err);
+      }
+      
+      setIsLoading(false);
     } else {
+      // Hide the revealed value
       setIsRevealed(false);
+      setRevealedValue(null);
       if (timerRef.current) clearTimeout(timerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     }
@@ -165,7 +128,7 @@ export function MaskedField({
         "transition-all duration-200",
         isRevealed ? "text-foreground" : "text-muted-foreground font-mono"
       )}>
-        {isRevealed ? value : maskedValue}
+        {isRevealed && revealedValue ? revealedValue : value}
       </span>
       {isRevealed && remainingSeconds > 0 && (
         <span className="inline-flex items-center gap-0.5 text-xs text-warning">
@@ -182,10 +145,10 @@ export function MaskedField({
             iconClassName
           )}
           onClick={handleReveal}
-          disabled={isLogging}
+          disabled={isLoading}
           title={isRevealed ? 'Hide' : 'Reveal (logged, auto-hides in 60s)'}
         >
-          {isLogging ? (
+          {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : isRevealed ? (
             <EyeOff className="h-3 w-3" />

@@ -37,15 +37,17 @@ export function AgentLeadList() {
   const { toast } = useToast();
 
   const fetchLeads = async () => {
+    // Fetch from leads_masked view for server-side PII masking
     const { data, error } = await supabase
-      .from('leads')
+      .from('leads_masked')
       .select('*')
       .order('updated_at', { ascending: false });
 
     if (error) {
       toast({ title: 'Error fetching leads', description: error.message, variant: 'destructive' });
     } else {
-      setLeads(data || []);
+      // Cast to Lead type since masked view has same structure
+      setLeads((data || []) as Lead[]);
     }
     setLoading(false);
   };
