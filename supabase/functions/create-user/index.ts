@@ -237,8 +237,8 @@ async function handleResetPassword(req: Request, supabaseAdmin: any, body: any, 
     );
   }
 
-  // Validate password length
-  if (newPassword.length < 6) {
+  // Validate password length (must match 8-character requirement for account creation)
+  if (newPassword.length < 8) {
     return new Response(
       JSON.stringify({ error: ERROR_MESSAGES.VALIDATION_ERROR }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
