@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +21,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { EditAgentDialog } from './EditAgentDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
+import { AgentKillSwitch } from './AgentKillSwitch';
 
 interface Agent {
   id: string;
@@ -267,10 +267,15 @@ export function AgentList() {
                   }
                 </TableCell>
                 <TableCell className="text-right">
-                  <Switch
-                    checked={agent.is_active}
-                    onCheckedChange={() => handleToggleStatus(agent.user_id, agent.is_active)}
-                    disabled={togglingId === agent.user_id}
+                  <AgentKillSwitch
+                    agentId={agent.id}
+                    agentUserId={agent.user_id}
+                    agentName={agent.full_name}
+                    isActive={agent.is_active}
+                    onStatusChange={() => {
+                      queryClient.invalidateQueries({ queryKey: ['agents'] });
+                      queryClient.invalidateQueries({ queryKey: ['agent-stats'] });
+                    }}
                   />
                 </TableCell>
                 <TableCell>
