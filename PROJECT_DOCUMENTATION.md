@@ -36,8 +36,10 @@ A **fully secured, enterprise-grade CRM system** built with modern security prac
 | **Server-side PII Masking** | Data never exposed unmasked |
 | **Activity Logging** | Full audit trail |
 | **Kill Switch** | Instant agent deactivation |
-| **Security Watermarks** | Screenshot deterrent |
+| **Security Watermarks + IP Tracking** | Screenshot deterrent with user identity + IP |
 | **Time-limited Reveals** | Auto-hide sensitive data |
+| **Rate Limiting** | Max 20 PII reveals per hour per user |
+| **`get-client-ip` Edge Function** | Captures client IP for watermarks |
 
 ---
 
@@ -70,19 +72,30 @@ A **fully secured, enterprise-grade CRM system** built with modern security prac
 - `reveal_lead_pii()` RPC with authorization + logging
 - Frontend never receives raw PII unless explicitly revealed
 
-### 5. **Security Watermarking**
+### 5. **Security Watermarking with IP Tracking** ✅
 - Diagonal pattern with user identity
-- Shows: Name, Email, Timestamp
-- Deters screenshots and data theft
+- Shows: **Name, Email, Timestamp, and Partially Masked IP Address**
+- IP captured via `get-client-ip` edge function
+- Reads from headers: `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip`
+- IP partially masked for privacy (e.g., `192.168.*.*`)
+- Deters screenshots and enables leak tracing
 - CSS-based (non-removable via DevTools easily)
 
-### 6. **Real-Time Features**
+### 6. **Rate Limiting on PII Reveals** ✅
+- **Server-side enforcement** in `reveal_lead_pii()` function
+- Maximum **20 reveals per hour per user**
+- Tracks `revealed_email` and `revealed_phone` actions in activity logs
+- Clear error message when limit exceeded
+- UI feedback: disabled button + toast notification
+- Prevents data harvesting attacks
+
+### 7. **Real-Time Features**
 - Live lead updates via Supabase Realtime
 - Instant agent deactivation propagation
 - Activity dashboard auto-refresh
 - Auth state synchronization
 
-### 7. **Email Notifications**
+### 8. **Email Notifications**
 - Suspicious activity alerts via Resend
 - Configurable admin notification email
 - Edge function for sending alerts
@@ -95,8 +108,9 @@ A **fully secured, enterprise-grade CRM system** built with modern security prac
 ┌─────────────────────────────────────────────────────────────────┐
 │                        FRONTEND LAYER                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  • Security Watermark (user identity overlay)                  │
+│  • Security Watermark (user + IP + timestamp overlay)          │
 │  • Time-limited reveal (60s auto-hide)                         │
+│  • Rate limit handling (disabled button + error toast)         │
 │  • Copy/paste prevention on revealed data                      │
 │  • Protected routes with role checks                           │
 │  • Force logout on deactivation                                │
@@ -108,7 +122,8 @@ A **fully secured, enterprise-grade CRM system** built with modern security prac
 ├─────────────────────────────────────────────────────────────────┤
 │  • JWT authentication on all requests                          │
 │  • leads_masked view (default masked response)                 │
-│  • reveal_lead_pii() RPC (authorized reveal + logging)         │
+│  • reveal_lead_pii() RPC (authorized + rate-limited + logged)  │
+│  • get-client-ip edge function (IP capture for watermarks)     │
 │  • Edge functions with CORS headers                            │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -218,6 +233,9 @@ AS $$ /* authorization + logging */ $$;
 | Token refresh for deactivated user | Auth context checks active status on refresh |
 | SQL injection in search | Supabase client uses parameterized queries |
 | XSS in lead notes | React's default escaping + no dangerouslySetInnerHTML |
+| **Rate limit exceeded on reveals** | Clear error message + disabled button + toast |
+| **IP detection fails** | Graceful fallback to "Unknown" |
+| **Mass data harvesting attempt** | Rate limit blocks after 20 reveals/hour |
 
 ---
 
@@ -322,16 +340,25 @@ Unusual patterns (mass reveals) trigger alerts. **Catch data harvesting before i
 
 # 🚀 Future Improvements
 
+## ✅ Recently Implemented
+
+### 1. **IP Address Tracking in Watermarks** ✅ DONE
+- Created `get-client-ip` edge function
+- Captures IP from `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` headers
+- Partially masks IP for privacy (e.g., `192.168.*.*`)
+- Displayed in security watermark alongside user identity
+- Enables leak source tracing
+
+### 2. **Rate Limiting on PII Reveals** ✅ DONE
+- Server-side enforcement in `reveal_lead_pii()` function
+- Maximum 20 reveals per hour per user
+- Tracks via activity_logs table
+- Clear error messages when limit exceeded
+- UI handles rate limit gracefully (disabled button + toast)
+
+---
+
 ## High Priority (Recommended)
-
-### 1. **IP Address Tracking in Watermarks**
-Add server-side IP capture via edge function for enhanced traceability.
-
-```typescript
-// Edge function to get client IP
-const clientIP = req.headers.get('x-forwarded-for') || 'unknown';
-```
-**Value:** Stronger accountability, geo-location of access.
 
 ---
 
@@ -382,14 +409,7 @@ VALUES (vault.encrypt('user@email.com', 'key_id'));
 
 ---
 
-### 7. **Rate Limiting on Reveals**
-Implement rate limiting at the edge function level:
-- Max 20 reveals per agent per hour
-- Automatic temporary lockout on abuse
-
----
-
-### 8. **Data Retention Policies**
+### 7. **Data Retention Policies**
 - Auto-archive old leads (>1 year)
 - GDPR-compliant data deletion
 - Audit log retention configuration
@@ -432,28 +452,44 @@ Visual overview of security posture and compliance status.
 
 ## Implementation Priority Matrix
 
-| Feature | Impact | Effort | Priority |
-|---------|--------|--------|----------|
-| 2FA for Admins | High | Medium | ⭐⭐⭐⭐⭐ |
-| IP Tracking | High | Low | ⭐⭐⭐⭐⭐ |
-| Session Management | High | Medium | ⭐⭐⭐⭐ |
-| Rate Limiting | High | Low | ⭐⭐⭐⭐ |
-| Field Encryption | High | High | ⭐⭐⭐ |
-| Export Controls | Medium | Medium | ⭐⭐⭐ |
-| Role Hierarchy | Medium | High | ⭐⭐ |
-| Geo-Fencing | Low | Medium | ⭐⭐ |
+| Feature | Impact | Effort | Priority | Status |
+|---------|--------|--------|----------|--------|
+| IP Tracking | High | Low | ⭐⭐⭐⭐⭐ | ✅ DONE |
+| Rate Limiting | High | Low | ⭐⭐⭐⭐ | ✅ DONE |
+| 2FA for Admins | High | Medium | ⭐⭐⭐⭐⭐ | Pending |
+| Session Management | High | Medium | ⭐⭐⭐⭐ | Pending |
+| Field Encryption | High | High | ⭐⭐⭐ | Pending |
+| Export Controls | Medium | Medium | ⭐⭐⭐ | Pending |
+| Role Hierarchy | Medium | High | ⭐⭐ | Pending |
+| Geo-Fencing | Low | Medium | ⭐⭐ | Pending |
 
 ---
 
-## Quick Wins (Can Implement Now)
+## Quick Wins
 
+### ✅ Completed
+1. ✅ **IP in Watermarks** - `get-client-ip` edge function capturing client IP
+2. ✅ **Rate Limiting** - 20 reveals/hour limit in `reveal_lead_pii()` function
+3. ✅ **Server-side PII Masking** - `leads_masked` view + mask functions
+4. ✅ **Activity Logging** - Full audit trail with context
+
+### 🔜 Remaining Quick Wins
 1. **Enable Leaked Password Protection** - Backend Settings → Auth → Enable
-2. **IP in Watermarks** - Single edge function addition
-3. **Rate Limiting** - Add counter check in `reveal_lead_pii()` function
-4. **Export Logging** - Add activity log on any data export
+2. **Export Logging** - Add activity log on any data export
+3. **Password Complexity Rules** - Enforce strong passwords
 
 ---
 
-*Document Version: 1.0*
+## 📊 Edge Functions Summary
+
+| Function | Purpose | Auth Required |
+|----------|---------|---------------|
+| `create-user` | Admin creates new agent accounts | Yes (Admin) |
+| `get-client-ip` | Captures client IP for watermarks | No |
+| `notify-suspicious-activity` | Sends alert emails via Resend | Service Role |
+
+---
+
+*Document Version: 2.0*
 *Last Updated: December 2024*
 *Project: RapidNexTech Secure CRM*
