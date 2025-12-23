@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Activity, CheckCircle2, Play, Clock } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 
 interface ActivityLog {
   id: string;
@@ -22,6 +23,7 @@ const actionConfig: Record<string, { label: string; icon: typeof CheckCircle2; c
 
 export function ActivityFeed() {
   const { authUser } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: activities, isLoading } = useQuery({
     queryKey: ['agent-activity', authUser?.id],
@@ -38,6 +40,39 @@ export function ActivityFeed() {
     },
     enabled: !!authUser?.id,
   });
+
+  // Real-time subscription for new activity logs
+  useEffect(() => {
+    if (!authUser?.id) return;
+
+    const channel = supabase
+      .channel('agent-activity-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+          filter: `user_id=eq.${authUser.id}`,
+        },
+        (payload) => {
+          // Update the cache with the new activity
+          queryClient.setQueryData(
+            ['agent-activity', authUser.id],
+            (oldData: ActivityLog[] | undefined) => {
+              if (!oldData) return [payload.new as ActivityLog];
+              // Add new activity at the beginning, keep only 20
+              return [payload.new as ActivityLog, ...oldData].slice(0, 20);
+            }
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser?.id, queryClient]);
 
   if (isLoading) {
     return (
