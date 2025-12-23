@@ -50,8 +50,9 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
 
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition: transition || 'transform 250ms cubic-bezier(0.25, 1, 0.5, 1)',
+    transition: transition || 'transform 200ms ease',
     zIndex: isSortableDragging ? 50 : undefined,
+    touchAction: 'none' as const,
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -65,25 +66,21 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group bg-card border border-border/60 rounded-lg p-3 shadow-sm transition-all duration-200 ${
-        isDragging 
+      {...attributes}
+      {...listeners}
+      className={`group bg-card border border-border/60 rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing select-none transition-all duration-200 ${
+        isDragging || isSortableDragging
           ? 'opacity-40 scale-95' 
-          : 'hover:shadow-md hover:border-primary/40 hover:scale-[1.02]'
+          : 'hover:shadow-md hover:border-primary/40 hover:scale-[1.01]'
       }`}
+      onClick={handleClick}
     >
       <div className="flex items-start gap-2">
-        <div
-          className="cursor-grab active:cursor-grabbing p-0.5 transition-transform hover:scale-110"
-          {...attributes}
-          {...listeners}
-        >
+        <div className="p-0.5 pointer-events-none">
           <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground flex-shrink-0 transition-colors" />
         </div>
-        <div 
-          className="flex-1 min-w-0 cursor-pointer"
-          onClick={handleClick}
-        >
-          <p className="font-medium text-sm text-foreground truncate hover:text-primary transition-colors">
+        <div className="flex-1 min-w-0 pointer-events-none">
+          <p className="font-medium text-sm text-foreground truncate">
             {lead.name}
           </p>
           {lead.company && (
@@ -93,10 +90,7 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
             </p>
           )}
           {lead.email && (
-            <div 
-              className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 pointer-events-auto">
               <Mail className="h-3 w-3 flex-shrink-0" />
               <MaskedField 
                 value={lead.email} 
@@ -139,34 +133,36 @@ interface StageColumnProps {
 }
 
 function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
-  const { setNodeRef, isOver: isDroppableOver } = useDroppable({ id: stage.status });
+  const { setNodeRef } = useDroppable({ id: stage.status });
 
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-xl border transition-all duration-300 h-full ${
+      className={`rounded-xl border transition-all duration-200 h-full min-h-[180px] ${
         isOver 
-          ? `border-2 ${stage.borderColor} ${stage.bgColor} scale-[1.02] shadow-lg` 
+          ? `border-2 ${stage.borderColor} ${stage.bgColor} shadow-lg ring-2 ring-offset-2 ring-offset-background ${stage.borderColor.replace('border-', 'ring-')}` 
           : 'border-border/40 bg-muted/20 hover:border-border/60'
       }`}
     >
       <div className="p-4 h-full flex flex-col">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
+            <div className={`w-2.5 h-2.5 rounded-full ${stage.color} ${isOver ? 'animate-pulse' : ''}`} />
             <span className="font-semibold text-sm text-foreground">{stage.label}</span>
           </div>
           <Badge variant="secondary" className="text-xs font-medium px-2 py-0.5 bg-background/80">
             {leads.length}
           </Badge>
         </div>
-        <div className="space-y-2 flex-1">
+        <div className="space-y-2 flex-1 min-h-[60px]">
           {leads.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className={`flex flex-col items-center justify-center py-6 text-center rounded-lg border-2 border-dashed transition-all ${
+              isOver ? `${stage.borderColor} ${stage.bgColor}` : 'border-muted-foreground/20'
+            }`}>
               <div className={`w-8 h-8 rounded-full ${stage.bgColor} flex items-center justify-center mb-2`}>
-                <div className={`w-2.5 h-2.5 rounded-full ${stage.color}/60`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
               </div>
-              <p className="text-xs text-muted-foreground">Drop leads here</p>
+              <p className="text-xs text-muted-foreground">{isOver ? 'Release to drop' : 'Drop leads here'}</p>
             </div>
           ) : (
             leads.map((lead) => (
@@ -216,7 +212,7 @@ export function LeadPipeline() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 4, // Reduced distance for quicker activation
       },
     }),
     useSensor(KeyboardSensor)
