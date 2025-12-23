@@ -14,7 +14,11 @@ import {
   User,
   Clock,
   Mail,
-  Loader2
+  Loader2,
+  Shield,
+  Camera,
+  Copy,
+  MonitorOff
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -218,6 +222,18 @@ export function ActivityDashboard() {
     if (action.includes('revealed_phone')) {
       return <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30">Phone Reveal</Badge>;
     }
+    if (action.includes('screenshot_attempt')) {
+      return <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30"><Camera className="h-3 w-3 mr-1 inline" />Screenshot</Badge>;
+    }
+    if (action.includes('copy_attempt_blocked')) {
+      return <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30"><Copy className="h-3 w-3 mr-1 inline" />Copy Blocked</Badge>;
+    }
+    if (action.includes('tab_switch') || action.includes('focus_lost')) {
+      return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30"><MonitorOff className="h-3 w-3 mr-1 inline" />Focus Lost</Badge>;
+    }
+    if (action.includes('dev_tools_opened')) {
+      return <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30"><Shield className="h-3 w-3 mr-1 inline" />Dev Tools</Badge>;
+    }
     if (action.includes('login')) {
       return <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">Login</Badge>;
     }
@@ -232,7 +248,19 @@ export function ActivityDashboard() {
       activity.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       activity.action.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesFilter = filterAction === null || activity.action.includes(filterAction);
+    let matchesFilter = true;
+    if (filterAction === 'revealed') {
+      matchesFilter = activity.action.includes('revealed');
+    } else if (filterAction === 'security') {
+      matchesFilter = activity.entity_type === 'security' || 
+        activity.action.includes('screenshot') || 
+        activity.action.includes('copy_attempt') ||
+        activity.action.includes('tab_switch') ||
+        activity.action.includes('focus_lost') ||
+        activity.action.includes('dev_tools');
+    } else if (filterAction !== null) {
+      matchesFilter = activity.action.includes(filterAction);
+    }
     
     return matchesSearch && matchesFilter;
   });
@@ -327,7 +355,7 @@ export function ActivityDashboard() {
                 className="pl-9"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button 
                 variant={filterAction === null ? "secondary" : "outline"} 
                 size="sm"
@@ -342,6 +370,14 @@ export function ActivityDashboard() {
               >
                 <Eye className="h-4 w-4 mr-1" />
                 Reveals
+              </Button>
+              <Button 
+                variant={filterAction === 'security' ? "secondary" : "outline"} 
+                size="sm"
+                onClick={() => setFilterAction('security')}
+              >
+                <Shield className="h-4 w-4 mr-1" />
+                Security
               </Button>
             </div>
           </div>
