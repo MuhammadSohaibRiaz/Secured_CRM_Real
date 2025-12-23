@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SecurityShieldProvider } from "@/components/security/SecurityShieldProvider";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import AgentDashboard from "./pages/AgentDashboard";
@@ -20,15 +21,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/bootstrap" element={<BootstrapAdmin />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/agent" element={<AgentDashboard />} />
-            <Route path="/unauthorized" element={<Unauthorized />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <SecurityShieldProvider>
+            <Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/bootstrap" element={<BootstrapAdmin />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/agent" element={<AgentDashboard />} />
+              <Route path="/unauthorized" element={<Unauthorized />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </SecurityShieldProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
