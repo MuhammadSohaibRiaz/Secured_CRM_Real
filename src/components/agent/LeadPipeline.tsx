@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Building2, GripVertical, ChevronRight, ArrowDown } from 'lucide-react';
+import { Loader2, Mail, Building2, GripVertical, ChevronRight, ChevronLeft, ArrowDown } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 import { LeadDetailsDialog } from '@/components/admin/LeadDetailsDialog';
 import { MaskedField } from '@/components/ui/masked-field';
@@ -37,9 +37,10 @@ interface LeadCardProps {
   lead: Lead;
   isDragging?: boolean;
   onClick: () => void;
+  onSwipe?: (direction: 'left' | 'right') => void;
 }
 
-function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
+function LeadCard({ lead, isDragging, onClick, onSwipe }: LeadCardProps) {
   const {
     attributes,
     listeners,
@@ -49,33 +50,110 @@ function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
     isDragging: isSortableDragging,
   } = useSortable({ id: lead.id });
 
+  // Swipe gesture state
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const swipeOffsetRef = useRef(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const SWIPE_THRESHOLD = 80;
+  const SWIPE_VELOCITY_THRESHOLD = 0.3;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+    swipeOffsetRef.current = 0;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    
+    // Only allow horizontal swipe if mostly horizontal movement
+    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      e.stopPropagation();
+      swipeOffsetRef.current = deltaX;
+      setSwipeOffset(deltaX);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchStartRef.current) return;
+    
+    const offset = swipeOffsetRef.current;
+    const duration = Date.now() - touchStartRef.current.time;
+    const velocity = Math.abs(offset) / duration;
+    
+    const shouldSwipe = Math.abs(offset) > SWIPE_THRESHOLD || velocity > SWIPE_VELOCITY_THRESHOLD;
+    
+    if (shouldSwipe && onSwipe) {
+      if (offset > 0) {
+        onSwipe('right');
+      } else {
+        onSwipe('left');
+      }
+    }
+    
+    touchStartRef.current = null;
+    swipeOffsetRef.current = 0;
+    setSwipeOffset(0);
+  }, [onSwipe]);
+
   const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition: transition || 'transform 200ms ease',
+    transform: transform 
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0)` 
+      : swipeOffset !== 0 
+        ? `translateX(${swipeOffset * 0.6}px) rotate(${swipeOffset * 0.02}deg)`
+        : undefined,
+    transition: swipeOffset !== 0 ? 'none' : (transition || 'transform 200ms ease'),
     zIndex: isSortableDragging ? 50 : undefined,
-    touchAction: 'none' as const,
+    touchAction: 'pan-y' as const,
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Only trigger click if not dragging
-    if (!transform) {
+    // Only trigger click if not dragging and not swiping
+    if (!transform && swipeOffset === 0) {
       onClick();
     }
   };
 
+  const showLeftIndicator = swipeOffset < -30;
+  const showRightIndicator = swipeOffset > 30;
+
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        (cardRef as any).current = node;
+      }}
       style={style}
       {...attributes}
       {...listeners}
-      className={`group bg-card border border-border/60 rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing select-none transition-all duration-200 ${
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className={`group bg-card border border-border/60 rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing select-none transition-all duration-200 relative overflow-visible ${
         isDragging || isSortableDragging
           ? 'opacity-40 scale-95' 
           : 'hover:shadow-md hover:border-primary/40 hover:scale-[1.01]'
-      }`}
+      } ${swipeOffset !== 0 ? 'shadow-lg' : ''}`}
       onClick={handleClick}
     >
+      {/* Swipe indicators */}
+      {showLeftIndicator && (
+        <div className="absolute -left-8 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
+          <ChevronLeft className="h-4 w-4 text-primary" />
+        </div>
+      )}
+      {showRightIndicator && (
+        <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
+          <ChevronRight className="h-4 w-4 text-primary" />
+        </div>
+      )}
+      
       <div className="flex items-start gap-2">
         <div className="p-0.5 pointer-events-none">
           <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground flex-shrink-0 transition-colors" />
@@ -131,9 +209,10 @@ interface StageColumnProps {
   leads: Lead[];
   isOver: boolean;
   onLeadClick: (lead: Lead) => void;
+  onSwipeLead: (leadId: string, direction: 'left' | 'right') => void;
 }
 
-function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
+function StageColumn({ stage, leads, isOver, onLeadClick, onSwipeLead }: StageColumnProps) {
   const { setNodeRef } = useDroppable({ id: stage.status });
 
   return (
@@ -155,7 +234,7 @@ function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
             {leads.length}
           </Badge>
         </div>
-        <div className="space-y-2 flex-1 min-h-[60px]">
+        <div className="space-y-2 flex-1 min-h-[60px] overflow-visible">
           {leads.length === 0 ? (
             <div className={`flex flex-col items-center justify-center py-6 text-center rounded-lg border-2 border-dashed transition-all ${
               isOver ? `${stage.borderColor} ${stage.bgColor}` : 'border-muted-foreground/20'
@@ -171,6 +250,7 @@ function StageColumn({ stage, leads, isOver, onLeadClick }: StageColumnProps) {
                 key={lead.id} 
                 lead={lead} 
                 onClick={() => onLeadClick(lead)}
+                onSwipe={(direction) => onSwipeLead(lead.id, direction)}
               />
             ))
           )}
@@ -311,6 +391,52 @@ export function LeadPipeline() {
     setSelectedLead(lead);
   };
 
+  const handleSwipeLead = async (leadId: string, direction: 'left' | 'right') => {
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return;
+
+    const currentIndex = stages.findIndex((s) => s.status === lead.status);
+    const targetIndex = direction === 'right' ? currentIndex + 1 : currentIndex - 1;
+
+    // Check bounds
+    if (targetIndex < 0 || targetIndex >= stages.length) {
+      toast({
+        title: direction === 'left' ? 'Already at first stage' : 'Already at last stage',
+        variant: 'default',
+      });
+      return;
+    }
+
+    const newStatus = stages[targetIndex].status;
+
+    // Optimistically update the UI
+    setLeads((prev) =>
+      prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l))
+    );
+
+    const { error } = await supabase
+      .from('leads')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', leadId);
+
+    if (error) {
+      // Revert on error
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, status: lead.status } : l))
+      );
+      toast({
+        title: 'Failed to update lead',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Lead moved',
+        description: `${lead.name} → ${stages[targetIndex].label}`,
+      });
+    }
+  };
+
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null;
 
   // Separate main flow from lost
@@ -355,6 +481,7 @@ export function LeadPipeline() {
                   leads={getLeadsByStatus(stage.status)}
                   isOver={overId === stage.status}
                   onLeadClick={handleLeadClick}
+                  onSwipeLead={handleSwipeLead}
                 />
               ))}
             </div>
@@ -366,12 +493,14 @@ export function LeadPipeline() {
                 leads={getLeadsByStatus(mainStages[3].status)}
                 isOver={overId === mainStages[3].status}
                 onLeadClick={handleLeadClick}
+                onSwipeLead={handleSwipeLead}
               />
               <StageColumn
                 stage={lostStage}
                 leads={getLeadsByStatus(lostStage.status)}
                 isOver={overId === lostStage.status}
                 onLeadClick={handleLeadClick}
+                onSwipeLead={handleSwipeLead}
               />
             </div>
 
