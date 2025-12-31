@@ -6,7 +6,7 @@ const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') || '').split(',').filte
 
 function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('origin');
-  
+
   // If ALLOWED_ORIGINS is not configured, allow all (dev mode)
   // In production, set ALLOWED_ORIGINS env variable
   if (ALLOWED_ORIGINS.length === 0) {
@@ -15,7 +15,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
       'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     };
   }
-  
+
   // Validate origin against whitelist
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     return {
@@ -24,7 +24,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
       'Access-Control-Allow-Credentials': 'true',
     };
   }
-  
+
   // Unknown origin - return restrictive headers
   return {
     'Access-Control-Allow-Origin': 'null',
@@ -48,7 +48,7 @@ function isValidEmail(email: string): boolean {
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
-  
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -97,40 +97,84 @@ serve(async (req) => {
 
 async function verifyAdmin(req: Request, supabaseAdmin: any, corsHeaders: Record<string, string>): Promise<{ isAdmin: boolean; adminId: string | null; error?: Response }> {
   const authHeader = req.headers.get('Authorization');
-  
+  const requestId = crypto.randomUUID();
+
+  console.log(JSON.stringify({
+    level: 'INFO',
+    requestId,
+    action: 'verifyAdmin_start',
+    hasAuthHeader: !!authHeader
+  }));
+
   if (!authHeader) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      requestId,
+      error: 'Missing Authorization header'
+    }));
     return {
       isAdmin: false,
       adminId: null,
       error: new Response(
-        JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }),
+        JSON.stringify({ error: 'Missing Authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     };
   }
 
   const token = authHeader.replace('Bearer ', '');
+  console.log(JSON.stringify({
+    level: 'DEBUG',
+    requestId,
+    tokenLength: token.length,
+    tokenStart: token.substring(0, 10) + '...'
+  }));
+
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-  
+
   if (authError || !user) {
-    console.error('Auth error:', authError);
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      requestId,
+      error: 'Auth failed',
+      details: authError?.message
+    }));
     return {
       isAdmin: false,
       adminId: null,
       error: new Response(
-        JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }),
+        JSON.stringify({
+          error: ERROR_MESSAGES.UNAUTHORIZED,
+          debug: { message: 'Invalid token', details: authError?.message }
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     };
   }
 
-  const { data: roleData } = await supabaseAdmin
+  console.log(JSON.stringify({
+    level: 'INFO',
+    requestId,
+    userId: user.id,
+    action: 'user_authenticated'
+  }));
+
+  const { data: roleData, error: roleError } = await supabaseAdmin
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
     .single();
 
-  if (!roleData || roleData.role !== 'admin') {
+  if (roleError || !roleData || roleData.role !== 'admin') {
+    console.error(JSON.stringify({
+      level: 'WARN',
+      requestId,
+      error: 'Role check failed',
+      userId: user.id,
+      foundRole: roleData?.role,
+      roleError: roleError?.message
+    }));
+
     return {
       isAdmin: false,
       adminId: null,
@@ -140,6 +184,13 @@ async function verifyAdmin(req: Request, supabaseAdmin: any, corsHeaders: Record
       )
     };
   }
+
+  console.log(JSON.stringify({
+    level: 'INFO',
+    requestId,
+    action: 'admin_verified',
+    userId: user.id
+  }));
 
   return { isAdmin: true, adminId: user.id };
 }
@@ -378,16 +429,48 @@ async function handleCreateUser(req: Request, supabaseAdmin: any, body: any, cor
 
   // Validate admin secret - this is a simple bootstrap mechanism
   const expectedSecret = Deno.env.get('ADMIN_BOOTSTRAP_SECRET');
-  
+
   let isBootstrap = false;
   let requestingAdminId: string | null = null;
 
-  if (adminSecret && expectedSecret && adminSecret === expectedSecret) {
-    // Bootstrap mode - creating first admin
+  // Explicitly handle bootstrap attempts
+  if (adminSecret) {
+    if (!expectedSecret) {
+      console.error('CRITICAL: ADMIN_BOOTSTRAP_SECRET is not set in Edge Function secrets');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error: Bootstrap secret not set on server' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // DEBUG LOGGING
+    console.log(`[DEBUG] Received secret length: ${adminSecret.length}`);
+    console.log(`[DEBUG] Expected secret length: ${expectedSecret.length}`);
+    console.log(`[DEBUG] Direct match: ${adminSecret === expectedSecret}`);
+    console.log(`[DEBUG] Trimmed match: ${adminSecret.trim() === expectedSecret.trim()}`);
+
+    // Check for match (try trimmed version too just in case)
+    if (adminSecret !== expectedSecret && adminSecret.trim() !== expectedSecret.trim()) {
+      console.warn('Invalid bootstrap secret attempt');
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid bootstrap secret',
+          debug: {
+            receivedLength: adminSecret.length,
+            expectedLength: expectedSecret.length,
+            match: adminSecret === expectedSecret
+          }
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Secret matches!
     isBootstrap = true;
     console.log('Bootstrap mode: Creating first admin user');
   } else {
-    // Normal mode - admin creating agents
+    console.log('[DEBUG] No adminSecret provided in body');
+    // Normal mode - admin creating agents (no secret provided)
     const { isAdmin, adminId, error } = await verifyAdmin(req, supabaseAdmin, corsHeaders);
     if (!isAdmin || error) {
       return error!;

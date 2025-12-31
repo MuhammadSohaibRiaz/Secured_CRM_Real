@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
@@ -5,8 +6,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Users, ListTodo, Activity, LogOut, Loader2, UserCheck, Eye } from 'lucide-react';
+import { Shield, Users, ListTodo, Activity, LogOut, Loader2, UserCheck, Eye, LayoutGrid, List } from 'lucide-react';
 import { AgentList } from '@/components/admin/AgentList';
+import { AgentGrid } from '@/components/admin/AgentGrid';
 import { CreateAgentDialog } from '@/components/admin/CreateAgentDialog';
 import { CreateTaskDialog } from '@/components/admin/CreateTaskDialog';
 import { AdminTaskList } from '@/components/admin/AdminTaskList';
@@ -18,6 +20,7 @@ import { SecurityWatermark } from '@/components/ui/security-watermark';
 export default function AdminDashboard() {
   const { isLoading, user } = useRequireAuth('admin');
   const { signOut } = useAuth();
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Fetch agent stats
   const { data: stats } = useQuery({
@@ -209,10 +212,30 @@ export default function AdminDashboard() {
                     Create and manage agent accounts
                   </CardDescription>
                 </div>
-                <CreateAgentDialog />
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-muted rounded-lg p-1">
+                    <Button
+                      variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setViewMode('grid')}
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setViewMode('list')}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <CreateAgentDialog />
+                </div>
               </CardHeader>
               <CardContent>
-                <AgentList />
+                {viewMode === 'list' ? <AgentList /> : <AgentGrid />}
               </CardContent>
             </Card>
           </TabsContent>

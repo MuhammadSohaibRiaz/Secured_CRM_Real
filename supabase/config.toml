@@ -1,4 +1,7 @@
-project_id = "ndohmxjtnblwztcjuhzl"
+project_id = "pyuanmeffplevwqkzgzz"
 
 [functions.get-client-ip]
+verify_jwt = false
+
+[functions.create-user]
 verify_jwt = false

@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SecurityShieldProvider } from "@/components/security/SecurityShieldProvider";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
+import AgentDetails from "./pages/AgentDetails";
 import AgentDashboard from "./pages/AgentDashboard";
 import Unauthorized from "./pages/Unauthorized";
 import BootstrapAdmin from "./pages/BootstrapAdmin";
@@ -27,6 +28,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/bootstrap" element={<BootstrapAdmin />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/agents/:agentId" element={<AgentDetails />} />
               <Route path="/agent" element={<AgentDashboard />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="*" element={<NotFound />} />
