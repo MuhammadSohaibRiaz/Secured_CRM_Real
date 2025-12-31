@@ -21,10 +21,14 @@ We are now ready to move from **Phase 1 (Foundation)** to **Phase 2 (Intelligenc
 ## 3. Current Status: Phase 1 (Foundation) - [COMPLETED]
 We have delivered a production-ready core system:
 
-### ✅ Security & Access Control
+### ✅ Enterprise-Grade Security
 *   **Role-Based Access (RBAC):** Distinct `Admin` and `Agent` roles.
-*   **Row-Level Security (RLS):** Agents strictly see *only* their assigned leads; Admins see everything.
-*   **Kill Switch:** Admins can instantly lock out an agent.
+*   **Row-Level Security (RLS):** Agents strictly see *only* their assigned leads.
+*   **Anti-Leak Protection:** Dynamic **Security Watermark** (showing User ID & IP) overlaying the screen to discourage data leaks/screenshots.
+*   **Privacy Shield:** Auto-blur technology that obscures the screen when the window loses focus.
+*   **PII Masking:** Phone numbers and Emails are masked by default (e.g., `****`) and require an explicit "Reveal" action to view.
+*   **Deep Audit Trails:** Immutable logs of every single action, including "Who viewed what" and "Who revealed PII".
+*   **Kill Switch:** Admins can instantly lock out an agent session.
 
 ### ✅ Lead & Task Management
 *   **Pipeline Management:** Full CRUD (Create, Read, Update, Delete) for Leads.
@@ -68,9 +72,9 @@ To achieve the client's vision, we propose the following Roadmap:
     *   *Output:* "Suggested Next Step," "Deal Sentiment," or "Summary."
 3.  **Predictive Insights:** Use historical "Time to Close" data to populate a "Predicted Close Date" field automatically.
 
-### Phase 4: Comms & Automation
+### Phase 4: Communications & Automation
 **Goal:** "Email management and automated reminders."
-1.  **Email Integration:** Integrate **Resend** or **Gmail API**. allow sending emails directly from the Agent Dashboard.
+1.  **Email Integration:** Integrate **Resend** or **Gmail API** to allow sending emails directly from the Agent Dashboard.
 2.  **Inbound Parsing:** Create a webhook to parse incoming emails and attach them to the Lead's activity log.
 3.  **Smart Notifications:** Slack/Email alerts when Gemini detects a "High Probability" lead or an "At Risk" account.
 
